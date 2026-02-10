@@ -1,0 +1,260 @@
+{
+  "base.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://sparkfabrik.com/schemas/spark-ci/base.schema.json",
+    "title": "Spark CI Base Configuration",
+    "description": "Defines the pipeline skeleton: stage topology, default job properties, and workflow triggers.",
+    "type": "object",
+    "required": [
+      "version",
+      "stages"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "version": {
+        "type": "string",
+        "const": "1",
+        "description": "Schema version. Currently only '1' is supported."
+      },
+      "name": {
+        "type": "string",
+        "description": "Workflow display name in GitHub Actions UI.",
+        "default": "Spark CI",
+        "minLength": 1
+      },
+      "stages": {
+        "type": "array",
+        "description": "Ordered list of stage names defining the pipeline topology.",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "minItems": 1,
+        "uniqueItems": true
+      },
+      "defaults": {
+        "type": "object",
+        "description": "Default job-level properties applied when not specified by a package or project. Passthrough to GitHub Actions.",
+        "additionalProperties": true
+      },
+      "on": {
+        "type": "object",
+        "description": "Workflow triggers. Passthrough to GitHub Actions.",
+        "additionalProperties": true
+      }
+    }
+  },
+  "package.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://sparkfabrik.com/schemas/spark-ci/package.schema.json",
+    "title": "Spark CI Package Configuration",
+    "description": "A package contributing jobs to pipeline stages. Validates the Spark CI orchestration layer (id, hooks, stages, job ids). Job definitions below the job id are native GitHub Actions passthrough and are not validated by this schema.",
+    "type": "object",
+    "required": [
+      "id",
+      "hooks"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "description": "Unique package identifier. Used as the job id prefix and as the provided_by target in project.yml. Must be unique across all packages.",
+        "minLength": 1,
+        "maxLength": 50
+      },
+      "hooks": {
+        "type": "object",
+        "description": "Map of stage name → jobs. Stage names are validated against base.yml at assembly time.",
+        "minProperties": 1,
+        "patternProperties": {
+          "^[a-z0-9][a-z0-9_-]*$": {
+            "type": "object",
+            "description": "Jobs for this stage. Keys are job ids, values are GitHub Actions job definitions (opaque).",
+            "minProperties": 1,
+            "patternProperties": {
+              "^[a-z0-9][a-z0-9_-]*$": {
+                "type": "object",
+                "description": "GitHub Actions job definition. Passthrough — not validated by this schema."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "project.schema.json": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://sparkfabrik.com/schemas/spark-ci/project.schema.json",
+    "title": "Spark CI Project Configuration",
+    "description": "Per-project customizations. Validates the Spark CI orchestration layer (extend, replace, disable directives with provided_by). Job properties are native GitHub Actions passthrough and are not validated by this schema.",
+    "type": "object",
+    "required": [
+      "hooks"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "hooks": {
+        "type": "object",
+        "description": "Map of stage name → jobs.",
+        "minProperties": 1,
+        "patternProperties": {
+          "^[a-z0-9][a-z0-9_-]*$": {
+            "type": "object",
+            "description": "Jobs for this stage. Each job is one of: new (no directive), extend, replace, or disable.",
+            "minProperties": 1,
+            "patternProperties": {
+              "^[a-z0-9][a-z0-9_-]*$": {
+                "$ref": "#/$defs/projectJob"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "$defs": {
+      "providedByRef": {
+        "type": "object",
+        "required": [
+          "provided_by"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "provided_by": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "The id of the package that provides the target job.",
+            "minLength": 1
+          }
+        }
+      },
+      "projectJob": {
+        "type": "object",
+        "description": "A project job. Must be exactly one of: extend (has 'extend' key), replace (has 'replace' key), disable (has 'disable' key), or new (none of the above). Multiple directives on the same job are not allowed.",
+        "oneOf": [
+          {
+            "$ref": "#/$defs/extendJob"
+          },
+          {
+            "$ref": "#/$defs/replaceJob"
+          },
+          {
+            "$ref": "#/$defs/disableJob"
+          },
+          {
+            "$ref": "#/$defs/newJob"
+          }
+        ]
+      },
+      "extendJob": {
+        "type": "object",
+        "description": "Deep-merges project properties into an existing package job. Properties not declared here are preserved from the package.",
+        "required": [
+          "extend"
+        ],
+        "properties": {
+          "extend": {
+            "$ref": "#/$defs/providedByRef"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "replace"
+              ]
+            },
+            {
+              "required": [
+                "disable"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": true
+      },
+      "replaceJob": {
+        "type": "object",
+        "description": "Fully substitutes an existing package job. Nothing from the original survives.",
+        "required": [
+          "replace"
+        ],
+        "properties": {
+          "replace": {
+            "$ref": "#/$defs/providedByRef"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "extend"
+              ]
+            },
+            {
+              "required": [
+                "disable"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": true
+      },
+      "disableJob": {
+        "type": "object",
+        "description": "Removes a package-provided job from the pipeline.",
+        "required": [
+          "disable"
+        ],
+        "properties": {
+          "disable": {
+            "$ref": "#/$defs/providedByRef"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "extend"
+              ]
+            },
+            {
+              "required": [
+                "replace"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": false
+      },
+      "newJob": {
+        "type": "object",
+        "description": "A new job contributed by the project. Not prefixed in output.",
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "extend"
+              ]
+            },
+            {
+              "required": [
+                "replace"
+              ]
+            },
+            {
+              "required": [
+                "disable"
+              ]
+            }
+          ]
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}
