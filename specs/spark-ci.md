@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-This specification defines a composable CI/CD pipeline system for SparkFabrik's GitHub Actions workflows. Instead of a monolithic workflow per project, the pipeline is assembled from multiple **packages** (`pkg_*.yml`), each contributing jobs to predefined stages. A **configuration file** defines the stage topology, and an optional **project configuration** allows per-project customizations through three explicit operations: extend, replace, and disable.
+This specification defines a composable CI/CD pipeline system for SparkFabrik's GitHub Actions workflows. Instead of a monolithic workflow per project, the pipeline is assembled from multiple **packages** (`pkg_*.yml`), each contributing jobs to predefined stages and optionally defining workflow-level properties (name, triggers, defaults, environment variables). A **configuration file** defines the stage topology, and an optional **project configuration** allows per-project customizations through three explicit operations: extend, replace, and disable.
 
 The system generates a standard GitHub Actions workflow YAML file where everything below the job level is native GitHub Actions syntax — no custom DSL, no intermediary abstractions.
 
@@ -57,14 +57,14 @@ GitHub Actions lacks both abstractions. Jobs must explicitly declare dependencie
 The pipeline is assembled from three layers, processed in order:
 
 ```
-configuration.yml          Defines stage topology, defaults, and workflow triggers
+configuration.yml          Defines stage topology (structural only)
     │
     ▼
-pkg_*.yml         Each package contributes jobs to stages (native GHA syntax)
-    │
+pkg_*.yml         Each package contributes jobs and workflow-level properties
+    │             (name, on, defaults, env) — native GHA syntax
     ▼
-project.yml       Per-project customizations: extend, replace, disable, new jobs
-    │
+project.yml       Per-project customizations: extend, replace, disable, new jobs,
+    │             and workflow-level property overrides
     ▼
 spark-ci          CLI tool assembles all layers and generates:
 generate
@@ -77,9 +77,9 @@ generate
 
 | Component | Location | Responsibility |
 |-----------|----------|----------------|
-| Configuration | `configuration.yml` | Stage topology, defaults, workflow triggers |
-| Packages | `pkg_*.yml` | Technology-specific job contributions |
-| Project Config | `project.yml` | Per-project customizations (optional) |
+| Configuration | `configuration.yml` | Stage topology and schema version |
+| Packages | `pkg_*.yml` | Technology-specific jobs and workflow-level properties (name, on, defaults, env) |
+| Project Config | `project.yml` | Per-project customizations and workflow-level overrides (optional) |
 | CLI Tool | `sparkfabrik/spark-ci`        | Assembles layers, generates workflow YAML |
 
 ### 3.3 Key Design Principles
@@ -102,11 +102,10 @@ generate
 
 ### 4.1 configuration.yml
 
-Defines the pipeline skeleton: stage order, default job properties, and workflow triggers.
+Defines the pipeline skeleton: stage order and schema version. This file is purely structural — it does not contain workflow data such as triggers, environment variables, or display names.
 
 ```yaml
 version: "1"
-name: Spark CI
 
 stages:
   - build
@@ -115,27 +114,14 @@ stages:
   - post_test
   - deploy
   - post_deploy
-
-defaults:
-  runs-on: ubuntu-latest
-  timeout-minutes: 30
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `version` | Yes | Schema version (currently `"1"`) |
-| `name` | No | Workflow display name (default: `Spark CI`) |
 | `stages` | Yes | Ordered list of stage names |
-| `defaults` | No | Default job-level properties applied when not specified by a package |
-| `on` | No | Workflow triggers (default: push to main/develop, PRs to main) |
 
-**Defaults behavior:** Properties in `defaults` are applied to any job that does not explicitly declare them. Package-level and project-level values always take precedence.
+Workflow-level properties (`name`, `on`, `defaults`, `env`) are defined in package files and/or the project file. See sections 4.2.2 and 4.3.
 
 ### 4.2 pkg_*.yml (Packages)
 
@@ -165,6 +151,17 @@ The filename has no bearing on the package's identity. Renaming `pkg_drupal.yml`
 ```yaml
 id: <package-id>
 
+# Workflow-level properties (all optional)
+name: <workflow-display-name>
+on:
+  <event>: { ... }               # map form only — no scalar or list shorthand
+defaults:
+  run:
+    shell: <shell>
+    working-directory: <dir>
+env:
+  <KEY>: <value>
+
 hooks:
   <stage>:
     <job-id>:
@@ -187,22 +184,53 @@ hooks:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `id` | Yes | Unique package identifier, used as job prefix and `provided_by` target |
+| `name` | No | Workflow display name (scalar; last definition wins) |
+| `on` | No | Workflow triggers (map form only; deep merged across packages) |
+| `defaults` | No | Workflow-level defaults (deep merged across packages) |
+| `env` | No | Workflow-level environment variables (deep merged across packages) |
 | `hooks` | Yes | Map of stage → job_id → job definition (native GHA syntax) |
 
+**Workflow-level properties** (`name`, `on`, `defaults`, `env`) contribute to the root-level keys of the generated GitHub Actions workflow. When multiple packages declare the same property, they are assembled using the deep merge algorithm (section 5.5): maps merge recursively with later packages winning on conflict, scalars and sequential arrays are replaced by later packages. The merge order follows the `--pkg` command-line order. The project file merges last with highest priority. See section 5.1 for the complete assembly sequence.
+
+**`on` must use map form.** GitHub Actions allows shorthand forms for triggers (`on: push`, `on: [push, pull_request]`). These are not permitted in spark-ci files. The `on` property must always be a map (e.g., `on: { push: {}, pull_request: {} }`). This ensures merge behavior is well-defined.
+
+**Defaults behavior:** The workflow-level `defaults` property is passed through to the generated workflow's root-level `defaults` key (a GitHub Actions native feature). This is distinct from the job-level properties like `runs-on` and `timeout-minutes`, which are set per-job. Note that `defaults` in the current version only supports `defaults.run` sub-keys (as per GitHub Actions specification).
+
 #### 4.2.3 Package Examples
+
+**pkg_base.yml** (base package — defines workflow triggers, defaults, and name):
+
+```yaml
+id: base
+
+name: Spark CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    shell: bash
+
+hooks: {}
+```
 
 **pkg_drupal.yml:**
 
 ```yaml
 id: drupal
 
+env:
+  PHP_VERSION: "8.2"
+
 hooks:
   build:
     docker-php:
       name: Build PHP image
       runs-on: ubuntu-latest
-      env:
-        PHP_VERSION: "8.2"
       steps:
         - uses: actions/checkout@v4
         - name: Setup PHP
@@ -240,6 +268,9 @@ hooks:
 
 ```yaml
 id: redis
+
+env:
+  REDIS_VERSION: "7"
 
 hooks:
   build:
@@ -290,13 +321,18 @@ hooks:
 - `id` is required and must match `[a-z0-9][a-z0-9-]*`
 - `id` must be unique across all packages (fail-fast check)
 - `id` must not contain `--` (the double-dash sequence is reserved as a separator)
+- `on`, if present, must be a map (not a scalar or list). Shorthand forms like `on: push` or `on: [push, pull_request]` are rejected with an actionable error
 - Stage names must exist in `configuration.yml`
 - Job ids must match `[a-z0-9][a-z0-9_-]*` and **must not contain `--`** (the double-dash sequence is reserved as the stage-id/package-id/job-id separator in generated job identifiers)
 - All properties below `<job-id>` must be valid GitHub Actions job syntax
 
 ### 4.3 project.yml (Project Configuration)
 
-The project configuration is the **last element in the assembly chain** and has the exclusive privilege of customizing package-provided jobs. It supports four types of job declarations:
+The project configuration is the **last element in the assembly chain** and has the highest priority in all merge operations. It serves two purposes:
+
+1. **Workflow-level overrides:** The project file can declare `name`, `on`, `defaults`, and `env` at the top level. These are deep merged on top of the values accumulated from all packages, with the project winning on conflict. The same merge rules and `on` map-form restriction from section 4.2.2 apply.
+
+2. **Job customizations:** The project file can customize package-provided jobs through the `hooks` section, using four types of declarations:
 
 | Type | Directive | Behavior |
 |------|-----------|----------|
@@ -488,6 +524,15 @@ hooks:
 
 ```yaml
 # project.yml
+name: "My Project CI"
+
+env:
+  DEPLOY_ENV: staging
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
+
+on:
+  workflow_dispatch: {}
+
 hooks:
   build:
     # Extend: add project-specific env to Drupal build
@@ -550,32 +595,42 @@ The `spark-ci-loader` CLI tool processes the configuration in the following orde
 ```
 Phase 1: Load configuration
   → Parse configuration.yml
-  → Extract stage topology and defaults
+  → Extract stage topology
 
 Phase 2: Load packages
   → Load package files in the order specified by --pkg switches
   → Parse each file and extract the id field
   → Validate id uniqueness across all packages (fail fast)
+  → Validate on is map form (if present)
   → Validate hooks and job definitions against configuration stages
   → Prefix all job ids with stage ID and package ID using -- separator
+  → Collect workflow-level properties (name, on, defaults, env)
 
-Phase 3: Apply project configuration
+Phase 3: Merge workflow-level properties from packages
+  → Deep merge name, on, defaults, env across packages in --pkg order
+  → Later packages win on conflict (maps merge recursively, scalars replace)
+
+Phase 4: Apply project configuration
   → Load project.yml (if present)
+  → Validate on is map form (if present)
+  → Deep merge project workflow-level properties (name, on, defaults, env)
+    on top of the package-accumulated values (project wins on conflict)
   → Apply disable operations (remove target jobs)
   → Apply replace operations (substitute target jobs)
   → Apply extend operations (deep merge into target jobs)
   → Add new project jobs (unprefixed)
 
-Phase 4: Resolve needs chains
+Phase 5: Resolve needs chains
   → Identify active stages (stages with at least one job)
   → For each job in stage N, set needs = [all job ids in stage N-1]
   → Merge computed needs with any explicit needs declared in source definitions
   → Skip empty stages transparently
 
-Phase 5: Generate display names
+Phase 6: Generate display names
   → Compute the name property for each job
 
-Phase 6: Render
+Phase 7: Render
+  → Emit workflow-level properties (name, on, defaults, env) as root-level keys
   → Generate valid GitHub Actions workflow YAML
   → Write to output path
 ```
@@ -752,16 +807,27 @@ The generated file is a standard GitHub Actions workflow with an auto-generated 
 ```yaml
 # ┌──────────────────────────────────────────────────────────────────────┐
 # │ AUTO-GENERATED by spark-ci-loader — do not edit manually            │
-# │ Source: configuration.yml, pkg_drupal.yml, pkg_redis.yml, project.yml │
+# │ Source: configuration.yml, pkg_base.yml, pkg_drupal.yml, pkg_redis.yml, project.yml │
 # │ Generated: 2026-02-10T14:32:00+01:00                                │
 # └──────────────────────────────────────────────────────────────────────┘
 
-name: Spark CI
+name: My Project CI
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PHP_VERSION: "8.2"
+  REDIS_VERSION: "7"
+  DEPLOY_ENV: staging
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
 
 jobs:
   # ── Stage: build ────────────────────────────────────────────
@@ -770,7 +836,6 @@ jobs:
     name: "[build] drupal · Build PHP image"
     runs-on: ubuntu-latest
     env:
-      PHP_VERSION: "8.2"
       DATABASE_URL: postgres://db:5432/myapp
       REDIS_HOST: redis
     services:
@@ -899,6 +964,7 @@ Validates all configuration files without generating output. Checks:
 - Package id format and uniqueness
 - Package ids do not contain `--` (reserved separator)
 - Job ids do not contain `--` (reserved separator)
+- `on` is map form in all packages and project file (no scalar or list shorthand)
 - Stage references (including pre/post stage base names)
 - Job id format
 - Extend/replace/disable target resolution
@@ -931,6 +997,12 @@ Error: Invalid package id "My-Package" in pkg_bad.yml.
 ```
 Error: Package "pkg_bad.yml" (id: bad) references unknown stage "unknown_stage".
        Valid stages: [build, post_build, test, deploy]
+```
+
+```
+Error: Invalid "on" format in pkg_bad.yml (id: bad).
+       "on" must be a map (e.g., on: { push: { branches: [main] } }).
+       Shorthand forms like "on: push" or "on: [push, pull_request]" are not allowed.
 ```
 
 ```
@@ -1017,6 +1089,16 @@ Error: Job "docker-php" in stage "build" of project.yml cannot declare
 ```yaml
 # project.yml
 
+# Workflow-level properties (all optional, deep merged on top of packages)
+name: "My Project CI"              # ← scalar, replaces package value
+on:                                 # ← map form only, deep merged
+  workflow_dispatch: {}
+defaults:                           # ← deep merged
+  run:
+    shell: sh
+env:                                # ← deep merged, project keys win on conflict
+  MY_VAR: value
+
 hooks:
   <stage>:
     # NEW — contribute a job (no directive, no prefix in output)
@@ -1070,8 +1152,13 @@ hooks:
 ### Assembly Chain Priority
 
 ```
-configuration.yml defaults  →  pkg_*.yml  →  project.yml (extend/replace)
-     (lowest)                           (highest)
+Workflow-level (name, on, defaults, env):
+  pkg_1.yml  →  pkg_2.yml  →  ...  →  pkg_N.yml  →  project.yml
+  (lowest)                                           (highest)
+
+Job-level (hooks):
+  pkg_*.yml  →  project.yml (extend/replace/disable)
+  (base)       (highest)
 ```
 
 ---
