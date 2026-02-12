@@ -1,10 +1,10 @@
-# AGENTS.md — AI Context for github-ci-assembler
+# AGENTS.md — AI Context for GitHub CI Assembler
 
-This document provides context for AI coding assistants working on the `github-ci-assembler` project. It captures design decisions, implementation details, and development conventions to maintain consistency across conversations.
+This document provides context for AI coding assistants working on the `gh-ci-assembler` project. It captures design decisions, implementation details, and development conventions to maintain consistency across conversations.
 
 ## Project Overview
 
-**github-ci-assembler** is a Go CLI tool that assembles modular GitHub Actions workflows from reusable packages. It implements a composable CI/CD pipeline system based on the specification in `specs/gh-ci-assembler.md` (version 2.1.0-draft).
+**gh-ci-assembler** is a Go CLI tool that assembles modular GitHub Actions workflows from reusable packages. It implements a composable CI/CD pipeline system based on the specification in `specs/gh-ci-assembler.md` (version 2.1.0-draft).
 
 **Module path:** `github.com/sparkfabrik/github-ci-assembler`  
 

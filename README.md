@@ -1,8 +1,8 @@
-# github-ci-assembler
+# GitHub CI Assembler
 
 **Composable CI/CD pipeline system for GitHub Actions**
 
-`github-ci-assembler` is a CLI tool that assembles modular GitHub Actions workflows from reusable packages. Instead of maintaining monolithic workflow files, you compose pipelines from multiple packages, each contributing jobs to predefined stages.
+`gh-ci-assembler` is a CLI tool that assembles modular GitHub Actions workflows from reusable packages. Instead of maintaining monolithic workflow files, you compose pipelines from multiple packages, each contributing jobs to predefined stages.
 
 ## Features
 
