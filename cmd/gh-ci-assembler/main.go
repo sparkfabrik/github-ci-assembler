@@ -9,13 +9,24 @@ import (
 	"github.com/sparkfabrik/github-ci-assembler/internal/render"
 )
 
+// Version information set by goreleaser at build time
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "gh-ci-assembler",
 		Short: "Composable CI/CD pipeline assembler for GitHub Actions",
 		Long: `gh-ci-assembler assembles modular CI/CD pipeline packages into a standard
 GitHub Actions workflow YAML file.`,
+		Version: version,
 	}
+
+	// Customize version template
+	rootCmd.SetVersionTemplate(fmt.Sprintf("gh-ci-assembler %s (commit: %s, built: %s)\n", version, commit, date))
 
 	rootCmd.AddCommand(newGenerateCmd())
 

@@ -227,7 +227,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Disable.ProvidedBy, jobID)
 				if j, ok := jobIndex[prefixedID]; ok {
 					j.Disabled = true
-					j.DisabledComment = fmt.Sprintf("DISABLED by project.yml")
+					j.DisabledComment = "DISABLED by project.yml"
 				}
 			} else if pj.IsReplace() {
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Replace.ProvidedBy, jobID)

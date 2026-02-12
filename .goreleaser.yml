@@ -1,0 +1,110 @@
+# GoReleaser configuration for gh-ci-assembler
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: gh-ci-assembler
+    main: ./cmd/gh-ci-assembler
+    binary: gh-ci-assembler
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: gh-ci-assembler
+    formats: ['tar.gz']
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
+    files:
+      - README.md
+      - LICENSE*
+      - specs/gh-ci-assembler.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'Features'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: 'Performance improvements'
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: 'Others'
+      order: 999
+
+release:
+  github:
+    owner: sparkfabrik
+    name: github-ci-assembler
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## GitHub CI Assembler {{ .Tag }}
+    
+    Composable CI/CD pipeline system for GitHub Actions.
+    
+    ### Installation
+    
+    **Using Go:**
+    ```bash
+    go install github.com/sparkfabrik/github-ci-assembler/cmd/gh-ci-assembler@{{ .Tag }}
+    ```
+    
+    **Using pre-built binaries:**
+    Download the appropriate binary for your platform from the assets below.
+  footer: |
+    **Full Changelog**: https://github.com/sparkfabrik/github-ci-assembler/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Homebrew tap (optional - uncomment if you want Homebrew support)
+# brews:
+#   - repository:
+#       owner: sparkfabrik
+#       name: homebrew-tap
+#     homepage: https://github.com/sparkfabrik/github-ci-assembler
+#     description: Composable CI/CD pipeline system for GitHub Actions
+#     license: Proprietary
+#     install: |
+#       bin.install "gh-ci-assembler"

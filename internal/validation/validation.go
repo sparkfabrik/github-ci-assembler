@@ -65,7 +65,7 @@ func ValidatePackage(pkg *config.Package, cfg *config.Configuration) error {
 	}
 
 	// Validate hooks is present and non-empty.
-	if pkg.Hooks == nil || len(pkg.Hooks) == 0 {
+	if len(pkg.Hooks) == 0 {
 		return fmt.Errorf("package %q (file: %s): 'hooks' is required and must contain at least one stage with jobs", pkg.ID, pkg.SourceFile)
 	}
 
