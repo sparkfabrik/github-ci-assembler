@@ -1,4 +1,4 @@
-# Spark CI Extensibility Specification
+# GitHub CI Assembler Extensibility Specification
 
 **Version:** 2.1.0-draft
 **Author:** Platform Team
@@ -36,7 +36,7 @@ GitHub Actions lacks both abstractions. Jobs must explicitly declare dependencie
 ### 2.3 Requirements
 
 | ID | Requirement | Priority |
-|----|-------------|----------|
+| ---- | ------------- | ---------- |
 | R1 | Multiple packages can contribute jobs independently | Must |
 | R2 | Platform team controls available stages (extension points) | Must |
 | R3 | Jobs within a stage run in parallel | Must |
@@ -66,21 +66,21 @@ pkg_*.yml         Each package contributes jobs and workflow-level properties
 project.yml       Per-project customizations: extend, replace, disable, new jobs,
     │             and workflow-level property overrides
     ▼
-spark-ci          CLI tool assembles all layers and generates:
+gh-ci-assembler          CLI tool assembles all layers and generates:
 generate
     │
     ▼
-.github/workflows/spark-ci.yml    Standard GitHub Actions workflow (committed)
+.github/workflows/gh-ci-assembler.yml    Standard GitHub Actions workflow (committed)
 ```
 
 ### 3.2 Components
 
 | Component | Location | Responsibility |
-|-----------|----------|----------------|
+| ----------- | ---------- | ---------------- |
 | Configuration | `configuration.yml` | Stage topology and schema version |
 | Packages | `pkg_*.yml` | Technology-specific jobs and workflow-level properties (name, on, defaults, env) |
 | Project Config | `project.yml` | Per-project customizations and workflow-level overrides (optional) |
-| CLI Tool | `sparkfabrik/spark-ci`        | Assembles layers, generates workflow YAML |
+| CLI Tool | `sparkfabrik/github-ci-assembler` | Assembles layers, generates workflow YAML |
 
 ### 3.3 Key Design Principles
 
@@ -109,15 +109,12 @@ version: "1"
 
 stages:
   - build
-  - post_build
   - test
-  - post_test
   - deploy
-  - post_deploy
 ```
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| ------- | ---------- | ------------- |
 | `version` | Yes | Schema version (currently `"1"`) |
 | `stages` | Yes | Ordered list of stage names |
 
@@ -141,7 +138,7 @@ The filename has no bearing on the package's identity. Renaming `pkg_drupal.yml`
 **Uniqueness validation.** Immediately after discovery, the loader collects all `id` values and verifies they are unique. If two or more files declare the same `id`, the loader fails with an error listing all conflicting files. This check runs before any hook or job validation.
 
 | `id` | Filename (example) | Job prefix (in stage `build`) |
-|------|--------------------|-------------------------------|
+| ------ | -------------------- | ------------------------------- |
 | `drupal` | `pkg_drupal.yml` | `build--drupal--` |
 | `redis` | `pkg_redis.yml` | `build--redis--` |
 | `my-cache` | `pkg_cache.yml` | `build--my-cache--` |
@@ -182,7 +179,7 @@ hooks:
 ```
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| ------- | ---------- | ------------- |
 | `id` | Yes | Unique package identifier, used as job prefix and `provided_by` target |
 | `name` | No | Workflow display name (scalar; last definition wins) |
 | `on` | No | Workflow triggers (map form only; deep merged across packages) |
@@ -192,18 +189,18 @@ hooks:
 
 **Workflow-level properties** (`name`, `on`, `defaults`, `env`) contribute to the root-level keys of the generated GitHub Actions workflow. When multiple packages declare the same property, they are assembled using the deep merge algorithm (section 5.5): maps merge recursively with later packages winning on conflict, scalars and sequential arrays are replaced by later packages. The merge order follows the `--pkg` command-line order. The project file merges last with highest priority. See section 5.1 for the complete assembly sequence.
 
-**`on` must use map form.** GitHub Actions allows shorthand forms for triggers (`on: push`, `on: [push, pull_request]`). These are not permitted in spark-ci files. The `on` property must always be a map (e.g., `on: { push: {}, pull_request: {} }`). This ensures merge behavior is well-defined.
+**`on` must use map form.** GitHub Actions allows shorthand forms for triggers (`on: push`, `on: [push, pull_request]`). These are not permitted in gh-ci-assembler files. The `on` property must always be a map (e.g., `on: { push: {}, pull_request: {} }`). This ensures merge behavior is well-defined.
 
 **Defaults behavior:** The workflow-level `defaults` property is passed through to the generated workflow's root-level `defaults` key (a GitHub Actions native feature). This is distinct from the job-level properties like `runs-on` and `timeout-minutes`, which are set per-job. Note that `defaults` in the current version only supports `defaults.run` sub-keys (as per GitHub Actions specification).
 
 #### 4.2.3 Package Examples
 
-**pkg_base.yml** (base package — defines workflow triggers, defaults, and name):
+**pkg_base.yml** (base package — defines workflow triggers, defaults, name, and a placeholder job):
 
 ```yaml
 id: base
 
-name: Spark CI
+name: GitHub CI Assembler
 
 on:
   push:
@@ -215,7 +212,13 @@ defaults:
   run:
     shell: bash
 
-hooks: {}
+hooks:
+  build:
+    placeholder:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Placeholder
+          run: echo "Base package placeholder"
 ```
 
 **pkg_drupal.yml:**
@@ -256,12 +259,6 @@ hooks:
         - name: Run PHPUnit
           run: vendor/bin/phpunit --coverage-text
 
-  post_build:
-    notify:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Notify Drupal build complete
-          run: echo "Drupal build finished."
 ```
 
 **pkg_redis.yml:**
@@ -294,14 +291,6 @@ hooks:
         - uses: actions/checkout@v4
         - name: Run Redis integration tests
           run: ./run-tests.sh
-
-  post_build:
-    notify:
-      runs-on: ubuntu-latest
-      continue-on-error: true
-      steps:
-        - name: Notify Redis build complete
-          run: echo "Redis image built."
 
   deploy:
     push-redis-image:
@@ -376,7 +365,7 @@ hooks:
 The `extend` directive performs a deep merge of the project's properties into the target package job, following Kubernetes / GitLab CI conventions:
 
 | Property type | Merge behavior |
-|---------------|----------------|
+| --------------- | ---------------- |
 | Maps (env, services, with) | Recursive merge; project keys win on conflict |
 | Sequential arrays (steps) | Full replacement; project array replaces package array |
 | Scalars (runs-on, timeout-minutes) | Project value replaces package value |
@@ -446,7 +435,7 @@ hooks:
 **When to use extend vs replace:**
 
 | Scenario | Use extend | Use replace |
-|----------|-----------|-------------|
+| ---------- | ----------- | ------------- |
 | Add env variables | ✓ | |
 | Add a service sidecar | ✓ | |
 | Change timeout or runner | ✓ | |
@@ -572,7 +561,7 @@ hooks:
         - name: Run project linter
           run: ./scripts/lint.sh
 
-  post_build:
+  post-build:
     # Extend: replace notification steps, keep other properties
     notify:
       extend:
@@ -590,7 +579,7 @@ hooks:
 
 ### 5.1 Pipeline Assembly Steps
 
-The `spark-ci-loader` CLI tool processes the configuration in the following order:
+The `gh-ci-assembler` CLI tool processes the configuration in the following order:
 
 ```
 Phase 1: Load configuration
@@ -637,7 +626,7 @@ Phase 7: Render
 
 ### 5.2 Automatic `needs` Computation
 
-The `needs` chain is derived mechanically from the stage topology. Given stages `[build, post_build, test, deploy]` and the following pkg files:
+The `needs` chain is derived mechanically from the stage topology. Given stages `[build, qa, test, deploy]` and the following pkg files:
 
 ```yaml
 id: drupal
@@ -649,7 +638,7 @@ hooks:
     docker-nginx:
       # ...
 
-  post-build:
+  qa:
     notify:
       # ...
 ```
@@ -661,7 +650,7 @@ hooks:
   build:
     docker-redis:
       # ...
-  post-build:
+  qa:
     notify:
       # ...
   deploy:
@@ -672,15 +661,15 @@ hooks:
 The computed needs are:
 
 | Job ID | needs |
-|-----|-------|
+| ----- | ------- |
 | `build--drupal--docker-php` | *(none — first stage)* |
 | `build--drupal--docker-nginx` | *(none — first stage)* |
 | `build--redis--docker-redis` | *(none — first stage)* |
-| `post-build--drupal--notify` | `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` |
-| `post-build--redis--notify` | `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` |
-| `deploy--redis--push-redis-image` | `[post-build--drupal--notify, post-build--redis--notify]` |
+| `qa--drupal--notify` | `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` |
+| `qa--redis--notify` | `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` |
+| `deploy--redis--push-redis-image` | `[qa--drupal--notify, qa--redis--notify]` |
 
-Note that `test` is empty, so `deploy` depends on `post_build` directly.
+Note that `test` is empty, so `deploy` depends on `qa` directly.
 
 ### 5.3 Preserving Explicit Dependencies
 
@@ -715,6 +704,7 @@ hooks:
 ```
 
 After assembly, `test--drupal--phpunit` will have:
+
 - Automatic: `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (all jobs from previous stage)
 - Explicit: `[test--drupal--behat]` (resolved from source needs)
 - **Final needs:** `[test--drupal--behat, build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (merged, duplicates removed)
@@ -730,7 +720,7 @@ The tool generates a `name` property for every job in the output workflow. The d
 **Format:**
 
 | Job origin | Has `name` in source | Generated display name |
-|------------|---------------------|----------------------|
+| ------------ | --------------------- | ---------------------- |
 | Package | Yes | `[stage] package-id · name` |
 | Package | No | `[stage] package-id · job-id` |
 | Project (new) | Yes | `[stage] name` |
@@ -743,8 +733,7 @@ The tool generates a `name` property for every job in the output workflow. The d
 [build] drupal · Build PHP image         ← package job with name declared
 [build] drupal · docker-nginx            ← package job without name (falls back to job id)
 [build] redis · Build Redis image        ← package job with name declared
-[post_build] drupal · notify             ← package job without name
-[test] custom-lint                       ← project job without name (no package prefix)
+[post-build] my-extra-job                ← project job without name (no package prefix)
 [test] Security scan                     ← project job with name declared
 [deploy] redis · push-redis-image        ← package job without name
 ```
@@ -806,43 +795,55 @@ The generated file is a standard GitHub Actions workflow with an auto-generated 
 
 ```yaml
 # ┌──────────────────────────────────────────────────────────────────────┐
-# │ AUTO-GENERATED by spark-ci-loader — do not edit manually            │
-# │ Source: configuration.yml, pkg_base.yml, pkg_drupal.yml, pkg_redis.yml, project.yml │
-# │ Generated: 2026-02-10T14:32:00+01:00                                │
+# │ AUTO-GENERATED by gh-ci-assembler — do not edit manually                    │
+# │ Source: configuration.yml, pkg_base.yml, pkg_drupal.yml, pkg_redis.yml, project.yml│
+# │ Generated: 2026-02-10T14:32:00+01:00                                  │
 # └──────────────────────────────────────────────────────────────────────┘
 
 name: My Project CI
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - develop
   workflow_dispatch: {}
-
 defaults:
   run:
     shell: bash
-
 env:
+  DEPLOY_ENV: staging
   PHP_VERSION: "8.2"
   REDIS_VERSION: "7"
-  DEPLOY_ENV: staging
-  SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
-
+  SLACK_WEBHOOK: https://hooks.slack.com/services/...
 jobs:
-  # ── Stage: build ────────────────────────────────────────────
-
-  build--drupal--docker-php:
-    name: "[build] drupal · Build PHP image"
+  #  ── Stage: build ─────────────────────────────────────
+  build--base--placeholder:
+    name: '[build] base · placeholder'
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: postgres://db:5432/myapp
-      REDIS_HOST: redis
+    steps:
+      - name: Placeholder
+        run: echo "Base package placeholder"
+  build--drupal--docker-nginx:
+    name: '[build] drupal · docker-nginx'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build nginx configuration
+        run: ./scripts/build-nginx.sh
+  build--drupal--docker-php:
+    name: '[build] drupal · Build PHP image'
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
         ports:
-          - "5432:5432"
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://db:5432/myapp
+      REDIS_HOST: redis
     steps:
       - uses: actions/checkout@v4
       - name: Setup PHP
@@ -851,61 +852,53 @@ jobs:
           php-version: "8.2"
       - name: Install dependencies
         run: composer install --no-interaction
-
-  build--drupal--docker-nginx:
-    name: "[build] drupal · docker-nginx"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build nginx configuration
-        run: ./scripts/build-nginx.sh
-
   build--redis--docker-redis:
-    name: "[build] redis · Build Redis image"
+    name: '[build] redis · Build Redis image'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build custom Redis image
         run: ./scripts/build-redis.sh
-
-  # ── Stage: post_build ───────────────────────────────────────
-
-  post_build--drupal--notify:
-    name: "[post_build] drupal · notify"
-    needs: [build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]
+  #  ── Stage: notify ────────────────────────────────────
+  notify--drupal--notify:
+    name: '[notify] drupal · notify'
+    needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     steps:
       - name: Custom notification
         run: |
           curl -X POST $SLACK_WEBHOOK \
             -d '{"text": "Build complete for ${{ github.repository }}"}'
-
-  post_build--redis--notify:
-    name: "[post_build] redis · notify"
-    needs: [build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]
+  notify--redis--notify:
+    name: '[notify] redis · notify'
+    needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - name: Notify Redis build complete
         run: echo "Redis image built."
-
-  # ── Stage: test ─────────────────────────────────────────────
-  # test--redis--job-test: DISABLED by project.yml
-
-  test--custom-lint:
-    name: "[test] custom-lint"
-    needs: [post_build--drupal--notify, post_build--redis--notify]
+  #  ── Stage: test ──────────────────────────────────────
+  #  test--redis--job-test: DISABLED by project.yml
+  custom-lint:
+    name: '[test] custom-lint'
+    needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Run project linter
         run: ./scripts/lint.sh
-
-  # ── Stage: deploy ───────────────────────────────────────────
-
+  test--drupal--phpunit:
+    name: '[test] drupal · PHPUnit test suite'
+    needs: [notify--drupal--notify, notify--redis--notify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit --coverage-text
+  #  ── Stage: deploy ────────────────────────────────────
   deploy--redis--push-redis-image:
-    name: "[deploy] redis · push-redis-image"
-    needs: [test--custom-lint]
+    name: '[deploy] redis · push-redis-image'
+    needs: [custom-lint, test--drupal--phpunit]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -914,7 +907,7 @@ jobs:
         with:
           context: ./docker/redis
           push: "true"
-          tags: "ghcr.io/myorg/myapp-redis:latest"
+          tags: ghcr.io/myorg/myapp-redis:latest
 ```
 
 ### 6.2 Lifecycle Management
@@ -929,12 +922,12 @@ This is somewhat out of scope: the generated workflow file is committed to the r
 
 **Generate:**
 ```bash
-bin/spark-ci generate \
+gh-ci-assembler generate \
   --conf=configuration.yml \
   --pkg=pkg_drupal.yml \
   --pkg=pkg_redis.yml \
   --project=project.yml \
-  --output=.github/workflows/spark-ci.yml
+  --output=.github/workflows/gh-ci-assembler.yml
 ```
 
 | Option | Default | Description |
@@ -942,7 +935,7 @@ bin/spark-ci generate \
 | `--conf`, `-c` | `configuration.yml` | Path to configuration file |
 | `--pkg`, `-p` | *(none)* | Path to a package file (repeatable, order matters) |
 | `--project` | `project.yml` | Path to project configuration |
-| `--output`, `-o` | `.github/workflows/spark-ci.yml` | Output path |
+| `--output`, `-o` | `.github/workflows/gh-ci-assembler.yml` | Output path |
 | `--dry-run` | | Print to stdout without writing |
 | `--diff` | | Compare generated vs existing (for CI) |
 
@@ -950,7 +943,7 @@ Packages are loaded in the order they are specified on the command line. This ex
 
 **Validate:**
 ```bash
-bin/spark-ci validate \
+gh-ci-assembler validate \
   --conf=configuration.yml \
   --pkg=pkg_drupal.yml \
   --pkg=pkg_redis.yml \
@@ -996,7 +989,7 @@ Error: Invalid package id "My-Package" in pkg_bad.yml.
 
 ```
 Error: Package "pkg_bad.yml" (id: bad) references unknown stage "unknown_stage".
-       Valid stages: [build, post_build, test, deploy]
+       Valid stages: [build, test, deploy]
 ```
 
 ```
