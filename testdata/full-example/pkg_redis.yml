@@ -1,0 +1,47 @@
+id: redis
+
+env:
+  REDIS_VERSION: "7"
+
+hooks:
+  build:
+    docker-redis:
+      name: Build Redis image
+      runs-on: self-hosted
+      services:
+        redis:
+          image: redis:7-alpine
+          ports:
+            - "6379:6379"
+      steps:
+        - uses: actions/checkout@v4
+        - name: Build Redis image
+          run: docker build -t myapp-redis ./docker/redis
+
+  test:
+    job-test:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Run Redis integration tests
+          run: ./run-tests.sh
+
+  notify:
+    notify:
+      runs-on: ubuntu-latest
+      continue-on-error: true
+      steps:
+        - name: Notify Redis build complete
+          run: echo "Redis image built."
+
+  deploy:
+    push-redis-image:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Push Redis image
+          uses: docker/build-push-action@v5
+          with:
+            context: ./docker/redis
+            push: "true"
+            tags: "ghcr.io/myorg/myapp-redis:latest"

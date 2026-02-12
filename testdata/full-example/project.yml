@@ -1,0 +1,58 @@
+name: "My Project CI"
+
+env:
+  DEPLOY_ENV: staging
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
+
+on:
+  workflow_dispatch: {}
+
+hooks:
+  build:
+    # Extend: add project-specific env to Drupal build
+    docker-php:
+      extend:
+        provided_by: drupal
+      env:
+        DATABASE_URL: postgres://db:5432/myapp
+        REDIS_HOST: redis
+      services:
+        postgres:
+          image: postgres:16
+          ports:
+            - "5432:5432"
+
+    # Replace: completely redefine Redis build
+    docker-redis:
+      replace:
+        provided_by: redis
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Build custom Redis image
+          run: ./scripts/build-redis.sh
+
+  test:
+    # Disable: remove Redis integration tests
+    job-test:
+      disable:
+        provided_by: redis
+
+    # New job: project-specific linting
+    custom-lint:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Run project linter
+          run: ./scripts/lint.sh
+
+  notify:
+    # Extend: replace notification steps, keep other properties
+    notify:
+      extend:
+        provided_by: drupal
+      steps:
+        - name: Custom notification
+          run: |
+            curl -X POST $SLACK_WEBHOOK \
+              -d '{"text": "Build complete for ${{ github.repository }}"}'

@@ -1,0 +1,21 @@
+id: base
+
+name: GitHub CI Assembler
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    shell: bash
+
+hooks:
+  build:
+    placeholder:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Placeholder
+          run: echo "Base package placeholder"
