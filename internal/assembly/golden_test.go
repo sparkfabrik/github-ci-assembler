@@ -18,7 +18,7 @@ func TestGolden_FullExample(t *testing.T) {
 	dir := filepath.Join(root, "full-example")
 
 	assembler := &assembly.Assembler{
-		ConfigPath:  filepath.Join(dir, "configuration.yml"),
+		ConfigPath: filepath.Join(dir, "configuration.yml"),
 		PkgPaths: []string{
 			filepath.Join(dir, "pkg_base.yml"),
 			filepath.Join(dir, "pkg_drupal.yml"),

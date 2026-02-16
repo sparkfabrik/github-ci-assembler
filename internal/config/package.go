@@ -28,21 +28,22 @@ func LoadPackage(path string) (*Package, error) {
 	if v, ok := raw["id"]; ok {
 		pkg.ID, _ = v.(string)
 	}
-	if v, ok := raw["name"]; ok {
-		pkg.Name, _ = v.(string)
+
+	if _, ok := raw["name"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"name\" in %s (id: %s).\n       \"name\" is only allowed in configuration.yml", path, pkg.ID)
 	}
-	if v, ok := raw["on"]; ok {
-		m := toMapStringAny(v)
-		if m == nil && v != nil {
-			return nil, fmt.Errorf("invalid \"on\" format in %s (id: %s).\n       \"on\" must be a map (e.g., on: { push: { branches: [main] } }).\n       Shorthand forms like \"on: push\" or \"on: [push, pull_request]\" are not allowed", path, pkg.ID)
-		}
-		pkg.On = m
+	if _, ok := raw["on"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"on\" in %s (id: %s).\n       \"on\" is only allowed in configuration.yml", path, pkg.ID)
 	}
-	if v, ok := raw["defaults"]; ok {
-		pkg.Defaults = toMapStringAny(v)
+	if _, ok := raw["defaults"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"defaults\" in %s (id: %s).\n       \"defaults\" is only allowed in configuration.yml", path, pkg.ID)
 	}
 	if v, ok := raw["env"]; ok {
-		pkg.Env = toMapStringAny(v)
+		m := toMapStringAny(v)
+		if m == nil && v != nil {
+			return nil, fmt.Errorf("invalid \"env\" format in %s (id: %s): \"env\" must be a map", path, pkg.ID)
+		}
+		pkg.Env = m
 	}
 
 	// Parse hooks: map[stage] → map[job-id] → map[string]any

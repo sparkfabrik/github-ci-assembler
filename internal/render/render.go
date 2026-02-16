@@ -53,11 +53,6 @@ func Render(result *config.AssemblyResult, opts ...RenderOptions) ([]byte, error
 			return nil, fmt.Errorf("rendering 'defaults': %w", err)
 		}
 	}
-	if result.Workflow.Env != nil {
-		if err := addAnyMapping(root, "env", result.Workflow.Env); err != nil {
-			return nil, fmt.Errorf("rendering 'env': %w", err)
-		}
-	}
 
 	// Add jobs section.
 	jobsNode, err := renderJobs(result.Jobs)

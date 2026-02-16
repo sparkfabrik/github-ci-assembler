@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/sparkfabrik/github-ci-assembler/internal/assembly"
 	"github.com/sparkfabrik/github-ci-assembler/internal/render"
+	"github.com/spf13/cobra"
 )
 
 // Version information set by goreleaser at build time

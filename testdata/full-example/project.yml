@@ -1,11 +1,6 @@
-name: "My Project CI"
-
 env:
   DEPLOY_ENV: staging
   SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
-
-on:
-  workflow_dispatch: {}
 
 hooks:
   build:

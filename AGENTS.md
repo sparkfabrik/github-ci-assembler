@@ -4,7 +4,7 @@ This document provides context for AI coding assistants working on the `gh-ci-as
 
 ## Project Overview
 
-**gh-ci-assembler** is a Go CLI tool that assembles modular GitHub Actions workflows from reusable packages. It implements a composable CI/CD pipeline system based on the specification in `specs/gh-ci-assembler.md` (version 2.1.0-draft).
+**gh-ci-assembler** is a Go CLI tool that assembles modular GitHub Actions workflows from reusable packages. It implements a composable CI/CD pipeline system based on the specification in `specs/gh-ci-assembler.md`
 
 **Module path:** `github.com/sparkfabrik/github-ci-assembler`  
 
@@ -281,9 +281,11 @@ When continuing work on this project:
 1. **Read this file first** to understand context and decisions
 2. **Check `specs/gh-ci-assembler.md`** for authoritative behavior specifications
 3. **Run tests after changes:** `go test ./...`
-4. **Update golden files** if output format changes
-5. **Update this file** when making new design decisions
-6. **Verify build** after any import path changes: `go build ./...`
+4. **Run formatting** `go fmt ./...` or `gofmt` (with the options you deem necessary)
+5. **Run linting:** `golangci-lint run`
+6. **Update golden files** if output format changes
+7. **Update this file** when making new design decisions
+8. **Verify build** after any import path changes: `go build ./...`
 
 ## Contact and Feedback
 

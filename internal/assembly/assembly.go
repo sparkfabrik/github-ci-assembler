@@ -38,25 +38,25 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 		return nil, fmt.Errorf("phase 2 (validate packages): %w", err)
 	}
 
-	// Validate `on` map form and validate each package.
+	// Validate each package.
 	for _, pkg := range pkgs {
-		if err := validateOnIsMap(pkg.On, pkg.SourceFile, pkg.ID); err != nil {
-			return nil, fmt.Errorf("phase 2 (validate packages): %w", err)
-		}
 		if err := validation.ValidatePackage(pkg, cfg); err != nil {
 			return nil, fmt.Errorf("phase 2 (validate packages): %w", err)
 		}
 	}
 
+	// Phase 3: Initialize workflow-level properties from configuration.yml.
+	wfProps := workflowPropsFromConfiguration(cfg)
+
 	// Collect all assembled jobs from packages.
 	var allJobs []*config.AssembledJob
 	for _, pkg := range pkgs {
-		jobs := assemblePackageJobs(pkg)
+		jobs, err := assemblePackageJobs(pkg)
+		if err != nil {
+			return nil, fmt.Errorf("phase 2 (assemble package jobs): %w", err)
+		}
 		allJobs = append(allJobs, jobs...)
 	}
-
-	// Phase 3: Merge workflow-level properties from packages.
-	wfProps := mergeWorkflowPropsFromPackages(pkgs)
 
 	// Phase 4: Apply project configuration (if present).
 	var proj *config.Project
@@ -67,15 +67,9 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("phase 4 (load project): %w", err)
 		}
-		if err := validateOnIsMap(proj.On, a.ProjectPath, "project"); err != nil {
-			return nil, fmt.Errorf("phase 4 (validate project): %w", err)
-		}
 		if err := validation.ValidateProject(proj, cfg, pkgs); err != nil {
 			return nil, fmt.Errorf("phase 4 (validate project): %w", err)
 		}
-
-		// Merge workflow-level properties from project on top of packages.
-		wfProps = mergeWorkflowPropsFromProject(wfProps, proj)
 
 		// Apply project hooks.
 		allJobs, err = applyProjectHooks(allJobs, proj)
@@ -113,12 +107,21 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 }
 
 // assemblePackageJobs converts package hooks into assembled jobs with prefixed IDs.
-func assemblePackageJobs(pkg *config.Package) []*config.AssembledJob {
+func assemblePackageJobs(pkg *config.Package) ([]*config.AssembledJob, error) {
 	var jobs []*config.AssembledJob
 
 	for stageName, stageJobs := range pkg.Hooks {
-		for jobID, jobDef := range stageJobs {
+		stageJobIndex := make(map[string]string, len(stageJobs))
+		for jobID := range stageJobs {
+			stageJobIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pkg.ID, jobID)
+		}
+
+		for jobID, rawJobDef := range stageJobs {
+			jobDef := deepCopyMap(rawJobDef)
 			prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pkg.ID, jobID)
+
+			// Merge file-level env into job env (job-level env wins).
+			mergeFileEnvIntoJob(jobDef, pkg.Env)
 
 			// Extract and consume the "name" property.
 			var sourceName string
@@ -128,10 +131,13 @@ func assemblePackageJobs(pkg *config.Package) []*config.AssembledJob {
 			}
 
 			// Extract and consume explicit "needs" if present.
-			var explicitNeeds []string
-			if n, ok := jobDef["needs"]; ok {
-				explicitNeeds = extractNeedsList(n)
-				delete(jobDef, "needs")
+			localNeeds, err := consumeNeedsList(jobDef, pkg.SourceFile, stageName, jobID)
+			if err != nil {
+				return nil, err
+			}
+			explicitNeeds, err := resolveLocalNeeds(localNeeds, stageJobIndex, pkg.SourceFile, stageName, jobID, "package stage")
+			if err != nil {
+				return nil, err
 			}
 
 			jobs = append(jobs, &config.AssembledJob{
@@ -146,67 +152,86 @@ func assemblePackageJobs(pkg *config.Package) []*config.AssembledJob {
 		}
 	}
 
-	return jobs
+	return jobs, nil
+}
+
+func workflowPropsFromConfiguration(cfg *config.Configuration) config.WorkflowProperties {
+	return config.WorkflowProperties{
+		Name:     cfg.Name,
+		On:       cfg.On,
+		Defaults: cfg.Defaults,
+	}
+}
+
+// consumeNeedsList extracts and consumes a "needs" list from a job definition.
+func consumeNeedsList(props map[string]any, sourceFile, stageName, jobID string) ([]string, error) {
+	rawNeeds, ok := props["needs"]
+	if !ok {
+		return nil, nil
+	}
+	delete(props, "needs")
+	return extractNeedsList(rawNeeds, sourceFile, stageName, jobID)
 }
 
 // extractNeedsList extracts a list of needs from a YAML value.
-// Handles both []any and []string forms.
-func extractNeedsList(v any) []string {
+func extractNeedsList(v any, sourceFile, stageName, jobID string) ([]string, error) {
 	switch val := v.(type) {
 	case []any:
 		result := make([]string, 0, len(val))
-		for _, item := range val {
+		for i, item := range val {
 			if s, ok := item.(string); ok {
 				result = append(result, s)
+				continue
 			}
+			return nil, fmt.Errorf("%s, stage %q, job %q: invalid needs entry at index %d (must be a string)", sourceFile, stageName, jobID, i)
 		}
-		return result
+		return result, nil
 	case []string:
-		return val
+		return val, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("%s, stage %q, job %q: invalid needs format (must be a list of job IDs)", sourceFile, stageName, jobID)
 	}
 }
 
-// mergeWorkflowPropsFromPackages accumulates workflow-level properties
-// from packages in --pkg order using deep merge.
-func mergeWorkflowPropsFromPackages(pkgs []*config.Package) config.WorkflowProperties {
-	var wp config.WorkflowProperties
-
-	for _, pkg := range pkgs {
-		if pkg.Name != "" {
-			wp.Name = pkg.Name
-		}
-		if pkg.On != nil {
-			wp.On = DeepMerge(wp.On, pkg.On)
-		}
-		if pkg.Defaults != nil {
-			wp.Defaults = DeepMerge(wp.Defaults, pkg.Defaults)
-		}
-		if pkg.Env != nil {
-			wp.Env = DeepMerge(wp.Env, pkg.Env)
-		}
+func resolveLocalNeeds(localNeeds []string, stageIndex map[string]string, sourceFile, stageName, jobID, scope string) ([]string, error) {
+	if len(localNeeds) == 0 {
+		return nil, nil
 	}
 
-	return wp
+	resolved := make([]string, 0, len(localNeeds))
+	for _, need := range localNeeds {
+		resolvedID, ok := stageIndex[need]
+		if !ok {
+			available := make([]string, 0, len(stageIndex))
+			for id := range stageIndex {
+				available = append(available, id)
+			}
+			sort.Strings(available)
+			return nil, fmt.Errorf("%s, stage %q, job %q: invalid needs reference %q.\n       needs entries must reference non-prefixed job IDs in the same stage and %s.\n       Available job IDs: %v",
+				sourceFile, stageName, jobID, need, scope, available)
+		}
+		resolved = append(resolved, resolvedID)
+	}
+	return resolved, nil
 }
 
-// mergeWorkflowPropsFromProject merges project workflow-level properties
-// on top of the accumulated package properties.
-func mergeWorkflowPropsFromProject(wp config.WorkflowProperties, proj *config.Project) config.WorkflowProperties {
-	if proj.Name != "" {
-		wp.Name = proj.Name
+func mergeFileEnvIntoJob(jobDef map[string]any, fileEnv map[string]any) {
+	if len(fileEnv) == 0 {
+		return
 	}
-	if proj.On != nil {
-		wp.On = DeepMerge(wp.On, proj.On)
+
+	jobEnvRaw, hasJobEnv := jobDef["env"]
+	if !hasJobEnv {
+		jobDef["env"] = deepCopyMap(fileEnv)
+		return
 	}
-	if proj.Defaults != nil {
-		wp.Defaults = DeepMerge(wp.Defaults, proj.Defaults)
+
+	jobEnv, ok := jobEnvRaw.(map[string]any)
+	if !ok {
+		return
 	}
-	if proj.Env != nil {
-		wp.Env = DeepMerge(wp.Env, proj.Env)
-	}
-	return wp
+
+	jobDef["env"] = DeepMerge(fileEnv, jobEnv)
 }
 
 // applyProjectHooks applies project hook operations to the assembled jobs.
@@ -214,6 +239,8 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 	if proj.Hooks == nil {
 		return jobs, nil
 	}
+
+	projectNeedsIndex := buildProjectNeedsIndex(proj)
 
 	// Build job index for quick lookup.
 	jobIndex := make(map[string]*config.AssembledJob, len(jobs))
@@ -223,6 +250,8 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 
 	for stageName, stageJobs := range proj.Hooks {
 		for jobID, pj := range stageJobs {
+			stageNeedsIndex := projectNeedsIndex[stageName]
+
 			if pj.IsDisable() {
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Disable.ProvidedBy, jobID)
 				if j, ok := jobIndex[prefixedID]; ok {
@@ -235,15 +264,19 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 					// Extract and consume the "name" property from replacement.
 					var sourceName string
 					props := deepCopyMap(pj.Properties)
+					mergeFileEnvIntoJob(props, proj.Env)
 					if n, ok := props["name"]; ok {
 						sourceName, _ = n.(string)
 						delete(props, "name")
 					}
-					// Extract explicit needs.
-					var explicitNeeds []string
-					if n, ok := props["needs"]; ok {
-						explicitNeeds = extractNeedsList(n)
-						delete(props, "needs")
+					// Extract and resolve explicit needs.
+					localNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
+					if err != nil {
+						return nil, err
+					}
+					explicitNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
+					if err != nil {
+						return nil, err
 					}
 					j.Properties = props
 					if sourceName != "" {
@@ -255,6 +288,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Extend.ProvidedBy, jobID)
 				if j, ok := jobIndex[prefixedID]; ok {
 					overlay := deepCopyMap(pj.Properties)
+					mergeFileEnvIntoJob(overlay, proj.Env)
 					// Extract and consume the "name" property from overlay.
 					if n, ok := overlay["name"]; ok {
 						sourceName, _ := n.(string)
@@ -264,25 +298,33 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 						delete(overlay, "name")
 					}
 					// Extract explicit needs from overlay and merge.
-					if n, ok := overlay["needs"]; ok {
-						overlayNeeds := extractNeedsList(n)
-						j.ExplicitNeeds = mergeNeeds(j.ExplicitNeeds, overlayNeeds)
-						delete(overlay, "needs")
+					localNeeds, err := consumeNeedsList(overlay, "project.yml", stageName, jobID)
+					if err != nil {
+						return nil, err
 					}
+					overlayNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
+					if err != nil {
+						return nil, err
+					}
+					j.ExplicitNeeds = mergeNeeds(j.ExplicitNeeds, overlayNeeds)
 					j.Properties = DeepMerge(j.Properties, overlay)
 				}
 			} else {
 				// New project job (no directive, not prefixed).
 				props := deepCopyMap(pj.Properties)
+				mergeFileEnvIntoJob(props, proj.Env)
 				var sourceName string
 				if n, ok := props["name"]; ok {
 					sourceName, _ = n.(string)
 					delete(props, "name")
 				}
-				var explicitNeeds []string
-				if n, ok := props["needs"]; ok {
-					explicitNeeds = extractNeedsList(n)
-					delete(props, "needs")
+				localNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
+				if err != nil {
+					return nil, err
+				}
+				explicitNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
+				if err != nil {
+					return nil, err
 				}
 
 				newJob := &config.AssembledJob{
@@ -303,16 +345,26 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 	return jobs, nil
 }
 
-// validateOnIsMap validates that the `on` field in raw YAML was actually a map.
-// This is a runtime check because the Go type system already ensures it through
-// toMapStringAny, but we need to detect when the user wrote `on: push` (scalar)
-// or `on: [push, pull_request]` (list) which would have been silently dropped.
-// We do this by re-reading the raw value at load time.
-func validateOnIsMap(on map[string]any, sourceFile, sourceID string) error {
-	// If on is nil, it was either absent or non-map (which toMapStringAny returned nil for).
-	// The package/project loaders handle this check at the raw YAML level.
-	// This function is here for explicit call sites that need the check.
-	return nil
+func buildProjectNeedsIndex(proj *config.Project) map[string]map[string]string {
+	index := make(map[string]map[string]string, len(proj.Hooks))
+	for stageName, stageJobs := range proj.Hooks {
+		stageIndex := make(map[string]string, len(stageJobs))
+		for jobID, pj := range stageJobs {
+			switch {
+			case pj.IsDisable():
+				// Disabled declarations do not produce output jobs.
+				continue
+			case pj.IsExtend():
+				stageIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pj.Extend.ProvidedBy, jobID)
+			case pj.IsReplace():
+				stageIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pj.Replace.ProvidedBy, jobID)
+			default:
+				stageIndex[jobID] = jobID
+			}
+		}
+		index[stageName] = stageIndex
+	}
+	return index
 }
 
 // sortJobs sorts assembled jobs by their position in the expanded stage topology,

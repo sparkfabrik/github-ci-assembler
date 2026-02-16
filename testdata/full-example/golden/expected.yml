@@ -4,7 +4,7 @@
 # │ Generated: 2025-01-01T00:00:00Z                                       │
 # └──────────────────────────────────────────────────────────────────────┘
 
-name: My Project CI
+name: GitHub CI Assembler
 on:
   pull_request:
     branches:
@@ -13,15 +13,9 @@ on:
     branches:
       - main
       - develop
-  workflow_dispatch: {}
 defaults:
   run:
     shell: bash
-env:
-  DEPLOY_ENV: staging
-  PHP_VERSION: "8.2"
-  REDIS_VERSION: "7"
-  SLACK_WEBHOOK: https://hooks.slack.com/services/...
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
@@ -33,6 +27,8 @@ jobs:
   build--drupal--docker-nginx:
     name: '[build] drupal · docker-nginx'
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - uses: actions/checkout@v4
       - name: Build nginx configuration
@@ -47,7 +43,10 @@ jobs:
           - 5432:5432
     env:
       DATABASE_URL: postgres://db:5432/myapp
+      DEPLOY_ENV: staging
+      PHP_VERSION: "8.2"
       REDIS_HOST: redis
+      SLACK_WEBHOOK: https://hooks.slack.com/services/...
     steps:
       - uses: actions/checkout@v4
       - name: Setup PHP
@@ -59,6 +58,9 @@ jobs:
   build--redis--docker-redis:
     name: '[build] redis · Build Redis image'
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENV: staging
+      SLACK_WEBHOOK: https://hooks.slack.com/services/...
     steps:
       - uses: actions/checkout@v4
       - name: Build custom Redis image
@@ -68,6 +70,10 @@ jobs:
     name: '[notify] drupal · notify'
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENV: staging
+      PHP_VERSION: "8.2"
+      SLACK_WEBHOOK: https://hooks.slack.com/services/...
     steps:
       - name: Custom notification
         run: |
@@ -78,6 +84,8 @@ jobs:
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      REDIS_VERSION: "7"
     steps:
       - name: Notify Redis build complete
         run: echo "Redis image built."
@@ -87,6 +95,9 @@ jobs:
     name: '[test] custom-lint'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENV: staging
+      SLACK_WEBHOOK: https://hooks.slack.com/services/...
     steps:
       - uses: actions/checkout@v4
       - name: Run project linter
@@ -95,6 +106,8 @@ jobs:
     name: '[test] drupal · PHPUnit test suite'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - uses: actions/checkout@v4
       - name: Run PHPUnit
@@ -104,6 +117,8 @@ jobs:
     name: '[deploy] redis · push-redis-image'
     needs: [custom-lint, test--drupal--phpunit]
     runs-on: ubuntu-latest
+    env:
+      REDIS_VERSION: "7"
     steps:
       - uses: actions/checkout@v4
       - name: Push Redis image

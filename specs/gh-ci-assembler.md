@@ -1,6 +1,6 @@
 # GitHub CI Assembler Extensibility Specification
 
-**Version:** 2.1.0-draft
+**Version:** 2.1.1-draft
 **Author:** Platform Team
 **Status:** Draft
 **Last Updated:** 2026-02-11
@@ -60,11 +60,11 @@ The pipeline is assembled from three layers, processed in order:
 configuration.yml          Defines stage topology (structural only)
     │
     ▼
-pkg_*.yml         Each package contributes jobs and workflow-level properties
-    │             (name, on, defaults, env) — native GHA syntax
+pkg_*.yml         Each package contributes jobs
+    │             and optional file-scoped env merged into package jobs
     ▼
 project.yml       Per-project customizations: extend, replace, disable, new jobs,
-    │             and workflow-level property overrides
+    │             and optional file-scoped env merged into project-defined jobs
     ▼
 gh-ci-assembler          CLI tool assembles all layers and generates:
 generate
@@ -77,9 +77,9 @@ generate
 
 | Component | Location | Responsibility |
 | ----------- | ---------- | ---------------- |
-| Configuration | `configuration.yml` | Stage topology and schema version |
-| Packages | `pkg_*.yml` | Technology-specific jobs and workflow-level properties (name, on, defaults, env) |
-| Project Config | `project.yml` | Per-project customizations and workflow-level overrides (optional) |
+| Configuration | `configuration.yml` | Stage topology, schema version, and workflow root keys (`name`, `on`, `defaults`) |
+| Packages | `pkg_*.yml` | Technology-specific jobs and optional file-scoped job `env` defaults |
+| Project Config | `project.yml` | Per-project customizations and optional file-scoped job `env` defaults (optional) |
 | CLI Tool | `sparkfabrik/github-ci-assembler` | Assembles layers, generates workflow YAML |
 
 ### 3.3 Key Design Principles
@@ -94,7 +94,7 @@ generate
 
 **Automatic job display name.** The tool generates a `name` property for every job to provide clear, hierarchical display in the GitHub Actions UI. The format uses bracket notation to show the stage, package origin, and job purpose at a glance. See section 6.2 for the complete naming rules.
 
-**Linear stage topology.** Stages are processed sequentially. Every job in stage N depends on all jobs in stage N-1. Empty stages are skipped transparently. This follows GitLab CI's model and hides GitHub Actions' DAG complexity from the end user. Jobs can additionally be inserted in `pre-<stage>` and `post-<stage>` virtual stages around any configured stage (see section 4.3.5).
+**Linear stage topology.** Stages are processed sequentially in the exact order declared in `configuration.yml`. Every job in stage N depends on all jobs in stage N-1. Empty stages are skipped transparently.
 
 ---
 
@@ -102,10 +102,18 @@ generate
 
 ### 4.1 configuration.yml
 
-Defines the pipeline skeleton: stage order and schema version. This file is purely structural — it does not contain workflow data such as triggers, environment variables, or display names.
+Defines the pipeline skeleton and workflow root keys.
 
 ```yaml
 version: "1"
+
+name: <workflow-display-name>         # optional
+on:                                   # optional, map form only
+  <event>: { ... }
+defaults:                             # optional
+  run:
+    shell: <shell>
+    working-directory: <dir>
 
 stages:
   - build
@@ -116,9 +124,12 @@ stages:
 | Field | Required | Description |
 | ------- | ---------- | ------------- |
 | `version` | Yes | Schema version (currently `"1"`) |
+| `name` | No | Workflow display name |
+| `on` | No | Workflow triggers (map form only) |
+| `defaults` | No | Workflow-level defaults |
 | `stages` | Yes | Ordered list of stage names |
 
-Workflow-level properties (`name`, `on`, `defaults`, `env`) are defined in package files and/or the project file. See sections 4.2.2 and 4.3.
+`configuration.yml` is the only file allowed to define workflow root keys (`name`, `on`, `defaults`). Root-level `env` is not supported.
 
 ### 4.2 pkg_*.yml (Packages)
 
@@ -148,14 +159,7 @@ The filename has no bearing on the package's identity. Renaming `pkg_drupal.yml`
 ```yaml
 id: <package-id>
 
-# Workflow-level properties (all optional)
-name: <workflow-display-name>
-on:
-  <event>: { ... }               # map form only — no scalar or list shorthand
-defaults:
-  run:
-    shell: <shell>
-    working-directory: <dir>
+# File-scoped env defaults (optional, merged into each package job env)
 env:
   <KEY>: <value>
 
@@ -181,17 +185,10 @@ hooks:
 | Field | Required | Description |
 | ------- | ---------- | ------------- |
 | `id` | Yes | Unique package identifier, used as job prefix and `provided_by` target |
-| `name` | No | Workflow display name (scalar; last definition wins) |
-| `on` | No | Workflow triggers (map form only; deep merged across packages) |
-| `defaults` | No | Workflow-level defaults (deep merged across packages) |
-| `env` | No | Workflow-level environment variables (deep merged across packages) |
+| `env` | No | File-scoped env defaults merged into each job in the package (job `env` wins on conflict) |
 | `hooks` | Yes | Map of stage → job_id → job definition (native GHA syntax) |
 
-**Workflow-level properties** (`name`, `on`, `defaults`, `env`) contribute to the root-level keys of the generated GitHub Actions workflow. When multiple packages declare the same property, they are assembled using the deep merge algorithm (section 5.5): maps merge recursively with later packages winning on conflict, scalars and sequential arrays are replaced by later packages. The merge order follows the `--pkg` command-line order. The project file merges last with highest priority. See section 5.1 for the complete assembly sequence.
-
-**`on` must use map form.** GitHub Actions allows shorthand forms for triggers (`on: push`, `on: [push, pull_request]`). These are not permitted in gh-ci-assembler files. The `on` property must always be a map (e.g., `on: { push: {}, pull_request: {} }`). This ensures merge behavior is well-defined.
-
-**Defaults behavior:** The workflow-level `defaults` property is passed through to the generated workflow's root-level `defaults` key (a GitHub Actions native feature). This is distinct from the job-level properties like `runs-on` and `timeout-minutes`, which are set per-job. Note that `defaults` in the current version only supports `defaults.run` sub-keys (as per GitHub Actions specification).
+**Forbidden root keys in packages:** `name`, `on`, and `defaults` are invalid in package files and must raise a validation error.
 
 #### 4.2.3 Package Examples
 
@@ -199,18 +196,6 @@ hooks:
 
 ```yaml
 id: base
-
-name: GitHub CI Assembler
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
-
-defaults:
-  run:
-    shell: bash
 
 hooks:
   build:
@@ -310,16 +295,17 @@ hooks:
 - `id` is required and must match `[a-z0-9][a-z0-9-]*`
 - `id` must be unique across all packages (fail-fast check)
 - `id` must not contain `--` (the double-dash sequence is reserved as a separator)
-- `on`, if present, must be a map (not a scalar or list). Shorthand forms like `on: push` or `on: [push, pull_request]` are rejected with an actionable error
+- Root-level `name`, `on`, and `defaults` are forbidden in package files (they are only valid in `configuration.yml`)
+- `env`, if present, must be a map
 - Stage names must exist in `configuration.yml`
 - Job ids must match `[a-z0-9][a-z0-9_-]*` and **must not contain `--`** (the double-dash sequence is reserved as the stage-id/package-id/job-id separator in generated job identifiers)
 - All properties below `<job-id>` must be valid GitHub Actions job syntax
 
 ### 4.3 project.yml (Project Configuration)
 
-The project configuration is the **last element in the assembly chain** and has the highest priority in all merge operations. It serves two purposes:
+The project configuration is the **last element in the assembly chain**. It serves two purposes:
 
-1. **Workflow-level overrides:** The project file can declare `name`, `on`, `defaults`, and `env` at the top level. These are deep merged on top of the values accumulated from all packages, with the project winning on conflict. The same merge rules and `on` map-form restriction from section 4.2.2 apply.
+1. **File-scoped env defaults:** The project file may declare top-level `env`, which is merged into the `env` map of every project-defined job (`new`, `extend`, `replace`) with lower priority than that job's own `env`.
 
 2. **Job customizations:** The project file can customize package-provided jobs through the `hooks` section, using four types of declarations:
 
@@ -456,71 +442,28 @@ hooks:
 
 **Error handling:** Disabling a job that does not exist in the target package is a fatal error. This prevents stale disable directives from silently hiding misconfiguration.
 
-#### 4.3.5 Pre-Stage and Post-Stage Hooks
+#### 4.3.5 Stage References (Explicit Only)
 
-Jobs can be inserted into **virtual stages** that run immediately before or after any stage defined in `configuration.yml`. These are specified using the `pre-<stage>` and `post-<stage>` naming convention.
+There are no virtual stages. A stage name used in `pkg_*.yml` or `project.yml` must match a stage explicitly declared in `configuration.yml`.
 
-For example, if `configuration.yml` defines stages `[build, test, deploy]`, the project file may reference:
-
-| Virtual stage | Runs... |
-|---------------|---------|
-| `pre-build` | Before all `build` jobs |
-| `post-build` | After all `build` jobs |
-| `pre-test` | Before all `test` jobs (after `post-build` if present, otherwise after `build`) |
-| `post-test` | After all `test` jobs |
-| `pre-deploy` | Before all `deploy` jobs |
-| `post-deploy` | After all `deploy` jobs |
-
-Pre/post stages follow the same linear topology as regular stages. Their `needs` chains are computed automatically:
-
-- `pre-X` jobs depend on all jobs in the stage immediately preceding `X` (or on `post-W` if present, where `W` is the preceding stage).
-- `X` jobs depend on all `pre-X` jobs (if any exist), otherwise on the preceding stage as usual.
-- `post-X` jobs depend on all jobs in stage `X`.
+If you want pre/post behavior, declare those stages explicitly in `configuration.yml`, for example:
 
 ```yaml
-# project.yml — pre/post stage example
-# Given configuration.yml stages: [build, test, deploy]
-hooks:
-  pre-build:
-    setup-credentials:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Configure cloud credentials
-          run: ./scripts/setup-creds.sh
-
-  post-test:
-    collect-coverage:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Aggregate coverage reports
-          run: ./scripts/coverage.sh
-
-  pre-deploy:
-    approval-gate:
-      runs-on: ubuntu-latest
-      environment: production
-      steps:
-        - name: Wait for manual approval
-          run: echo "Deployment approved"
+stages:
+  - pre-build
+  - build
+  - post-build
+  - test
+  - deploy
 ```
-
-**Validation rules for pre/post stages:**
-
-- The base stage name (the part after `pre-` or `post-`) must exist in `configuration.yml`. Referencing `pre-unknown` is a fatal error.
-- Pre/post stages can be used in the project file and (while discouraged) also in package files.
 
 #### 4.3.6 Complete project.yml Example
 
 ```yaml
 # project.yml
-name: "My Project CI"
-
 env:
   DEPLOY_ENV: staging
   SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
-
-on:
-  workflow_dispatch: {}
 
 hooks:
   build:
@@ -561,7 +504,7 @@ hooks:
         - name: Run project linter
           run: ./scripts/lint.sh
 
-  post-build:
+  notify:
     # Extend: replace notification steps, keep other properties
     notify:
       extend:
@@ -584,30 +527,31 @@ The `gh-ci-assembler` CLI tool processes the configuration in the following orde
 ```
 Phase 1: Load configuration
   → Parse configuration.yml
+  → Extract workflow root keys (name, on, defaults)
   → Extract stage topology
 
 Phase 2: Load packages
   → Load package files in the order specified by --pkg switches
   → Parse each file and extract the id field
   → Validate id uniqueness across all packages (fail fast)
-  → Validate on is map form (if present)
   → Validate hooks and job definitions against configuration stages
+  → Validate forbidden package root keys (name, on, defaults)
+  → Merge package-level env into each package job env (job env wins)
   → Prefix all job ids with stage ID and package ID using -- separator
-  → Collect workflow-level properties (name, on, defaults, env)
+  → Resolve explicit needs (same-stage, same-package, non-prefixed IDs)
 
-Phase 3: Merge workflow-level properties from packages
-  → Deep merge name, on, defaults, env across packages in --pkg order
-  → Later packages win on conflict (maps merge recursively, scalars replace)
+Phase 3: Initialize workflow properties
+  → Use configuration.yml root keys only (name, on, defaults)
 
 Phase 4: Apply project configuration
   → Load project.yml (if present)
-  → Validate on is map form (if present)
-  → Deep merge project workflow-level properties (name, on, defaults, env)
-    on top of the package-accumulated values (project wins on conflict)
+  → Validate forbidden project root keys (name, on, defaults)
+  → Merge project-level env into each project-defined job env (job env wins)
   → Apply disable operations (remove target jobs)
   → Apply replace operations (substitute target jobs)
   → Apply extend operations (deep merge into target jobs)
   → Add new project jobs (unprefixed)
+  → Resolve explicit needs (same-stage, project.yml-local, non-prefixed IDs)
 
 Phase 5: Resolve needs chains
   → Identify active stages (stages with at least one job)
@@ -619,7 +563,7 @@ Phase 6: Generate display names
   → Compute the name property for each job
 
 Phase 7: Render
-  → Emit workflow-level properties (name, on, defaults, env) as root-level keys
+  → Emit workflow-level properties (name, on, defaults) as root-level keys
   → Generate valid GitHub Actions workflow YAML
   → Write to output path
 ```
@@ -678,9 +622,14 @@ Jobs may explicitly declare a `needs` keyword in their source definition (in eit
 The final `needs` array in the generated workflow contains:
 
 1. **Automatic dependencies:** All computed job IDs from the previous stage (based on linear stage topology)
-2. **Explicit dependencies:** All job IDs that were originally specified in the source `needs` field (if any)
+2. **Explicit dependencies:** All job IDs from source `needs`, resolved to output IDs
 
-**Job ID resolution:** Job IDs specified in the source `needs` must use **prefixed names** (the job-id as seen in the output file). The loader does not apply any modification during assembly.
+**Job ID resolution rules (source `needs`):**
+
+- Values must be **non-prefixed** job IDs.
+- They must reference jobs in the **same stage** and in the **same source file**.
+- In package files, references are resolved within that package+stage.
+- In project files, references are resolved only within `project.yml` jobs declared in that stage (not directly to package-only jobs).
 
 **Example:**
 
@@ -699,19 +648,21 @@ hooks:
     behat:
       # ...
     phpunit:
-      needs: [test--drupal--behat]  # ← Explicit dependency within same package
+      needs: [behat]  # ← non-prefixed, same-stage, same-file
       # ...
 ```
 
 After assembly, `test--drupal--phpunit` will have:
 
 - Automatic: `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (all jobs from previous stage)
-- Explicit: `[test--drupal--behat]` (resolved from source needs)
+- Explicit: `[test--drupal--behat]` (resolved from local source needs)
 - **Final needs:** `[test--drupal--behat, build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (merged, duplicates removed)
 
 **Validation rules:**
 
-- This is considered experimental, no validation performed.
+- Invalid `needs` format (not a string array) is a fatal error.
+- Referencing a job outside the same stage or outside the same source file is a fatal error.
+- Referencing unknown local job IDs is a fatal error with the list of allowed local IDs.
 
 ### 5.4 Job Name Generation
 
@@ -800,7 +751,7 @@ The generated file is a standard GitHub Actions workflow with an auto-generated 
 # │ Generated: 2026-02-10T14:32:00+01:00                                  │
 # └──────────────────────────────────────────────────────────────────────┘
 
-name: My Project CI
+name: GitHub CI Assembler
 on:
   pull_request:
     branches:
@@ -809,15 +760,9 @@ on:
     branches:
       - main
       - develop
-  workflow_dispatch: {}
 defaults:
   run:
     shell: bash
-env:
-  DEPLOY_ENV: staging
-  PHP_VERSION: "8.2"
-  REDIS_VERSION: "7"
-  SLACK_WEBHOOK: https://hooks.slack.com/services/...
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
@@ -937,31 +882,8 @@ gh-ci-assembler generate \
 | `--project` | `project.yml` | Path to project configuration |
 | `--output`, `-o` | `.github/workflows/gh-ci-assembler.yml` | Output path |
 | `--dry-run` | | Print to stdout without writing |
-| `--diff` | | Compare generated vs existing (for CI) |
 
 Packages are loaded in the order they are specified on the command line. This explicit ordering avoids reliance on filesystem or alphabetical ordering and makes the composition deterministic. At least one `--pkg` switch is required.
-
-**Validate:**
-```bash
-gh-ci-assembler validate \
-  --conf=configuration.yml \
-  --pkg=pkg_drupal.yml \
-  --pkg=pkg_redis.yml \
-  --project=project.yml
-```
-
-Validates all configuration files without generating output. Checks:
-
-- YAML syntax
-- Schema compliance
-- Package id format and uniqueness
-- Package ids do not contain `--` (reserved separator)
-- Job ids do not contain `--` (reserved separator)
-- `on` is map form in all packages and project file (no scalar or list shorthand)
-- Stage references (including pre/post stage base names)
-- Job id format
-- Extend/replace/disable target resolution
-- No contradictory project directives (extend + disable on same target)
 
 ---
 
@@ -993,9 +915,8 @@ Error: Package "pkg_bad.yml" (id: bad) references unknown stage "unknown_stage".
 ```
 
 ```
-Error: Invalid "on" format in pkg_bad.yml (id: bad).
-       "on" must be a map (e.g., on: { push: { branches: [main] } }).
-       Shorthand forms like "on: push" or "on: [push, pull_request]" are not allowed.
+Error: Invalid top-level key "on" in pkg_bad.yml (id: bad).
+       "on" is only allowed in configuration.yml.
 ```
 
 ```
@@ -1035,7 +956,7 @@ Error: Job "docker-php" in stage "build" of project.yml cannot declare
 | Max 256 jobs per workflow (GitHub Actions limit) | Large compositions may hit the limit | Consolidate jobs within packages |
 | Stage topology is linear only | Cannot express arbitrary DAG dependencies | Sufficient for the vast majority of CI pipelines; DAG support is a possible future enhancement |
 | Only `project.yml` can extend/replace/disable | Packages cannot customize other packages | Prevents non-deterministic load order issues; if needed, compose in a third package |
-| Generated file must be committed | Risk of drift between source and output | Mitigated by `--diff` CI check |
+| Generated file must be committed | Risk of drift between source and output | Mitigated by regenerating and validating output in CI |
 | Deep merge follows fixed rules | Cannot customize merge behavior per-property | Covers 95% of cases; use `replace` for the remaining 5% |
 | `name` property is consumed by the tool | Cannot use raw `name` passthrough for package jobs | Acceptable trade-off for consistent UI display |
 
@@ -1082,14 +1003,8 @@ Error: Job "docker-php" in stage "build" of project.yml cannot declare
 ```yaml
 # project.yml
 
-# Workflow-level properties (all optional, deep merged on top of packages)
-name: "My Project CI"              # ← scalar, replaces package value
-on:                                 # ← map form only, deep merged
-  workflow_dispatch: {}
-defaults:                           # ← deep merged
-  run:
-    shell: sh
-env:                                # ← deep merged, project keys win on conflict
+# File-scoped env defaults (optional, merged into project-defined job env maps)
+env:                                # ← lower priority than each job's own env
   MY_VAR: value
 
 hooks:
@@ -1104,7 +1019,7 @@ hooks:
     <job-id>:
       extend:
         provided_by: <package-id>
-      env:                            # ← merged with package env
+      env:                            # ← merged over project-file env and package env
         MY_VAR: value
       services:                       # ← merged with package services
         redis: { image: redis:7 }
@@ -1123,6 +1038,10 @@ hooks:
     <job-id>:
       disable:
         provided_by: <package-id>
+
+    # needs values are always local/non-prefixed
+    another-job:
+      needs: [my-job]                 # ← same-stage, project.yml-local IDs only
 ```
 
 ### Deep Merge Rules
@@ -1145,9 +1064,8 @@ hooks:
 ### Assembly Chain Priority
 
 ```
-Workflow-level (name, on, defaults, env):
-  pkg_1.yml  →  pkg_2.yml  →  ...  →  pkg_N.yml  →  project.yml
-  (lowest)                                           (highest)
+Workflow-level (name, on, defaults):
+  configuration.yml only
 
 Job-level (hooks):
   pkg_*.yml  →  project.yml (extend/replace/disable)
