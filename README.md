@@ -50,10 +50,18 @@ gh-ci-assembler generate \
 
 ### configuration.yml
 
-Defines the stage topology:
+Defines workflow root keys and stage topology:
 
 ```yaml
 version: "1"
+
+name: GitHub CI Assembler
+on:
+  push: {}
+  pull_request: {}
+defaults:
+  run:
+    shell: bash
 
 stages:
   - build
@@ -63,15 +71,10 @@ stages:
 
 ### pkg_*.yml (Packages)
 
-Each package contributes jobs and workflow-level properties:
+Each package contributes jobs and can declare file-scoped `env` defaults merged into each package job (`job.env` wins on conflicts):
 
 ```yaml
 id: drupal
-
-name: "Drupal CI"
-on:
-  push: {}
-  pull_request: {}
 
 env:
   PHP_VERSION: "8.2"
@@ -99,65 +102,62 @@ hooks:
 **Key points:**
 - `id` is required and must be unique across all packages
 - `hooks` maps stages to job definitions (native GHA syntax)
-- Workflow properties (`name`, `on`, `defaults`, `env`) are merged across packages
-- `on` must use map form only (no shorthand scalars or arrays)
+- Root `name`, `on`, and `defaults` are not allowed in packages
+- Source `needs` values must be non-prefixed local job IDs in the same stage and same file
 
 ### project.yml (Optional)
 
-Customize package jobs per-project:
+Customize package jobs per-project, with optional file-scoped env defaults:
 
 ```yaml
-# Extend a package job (deep merge)
-hooks:
-  build:
-    - job_id: docker-php
-      provided_by: drupal
-      extend:
-        env:
-          CUSTOM_VAR: "value"
-        steps:
-          - name: Additional step
-            run: echo "custom logic"
-
-# Replace a package job entirely
-    - job_id: phpunit
-      provided_by: drupal
-      replace:
-        runs-on: ubuntu-latest
-        steps:
-          - name: Custom test
-            run: npm test
-
-# Disable a package job
-    - job_id: deploy-staging
-      provided_by: drupal
-      disable: true
-
-# Add new project-specific job
-    - job_id: lighthouse
-      new:
-        name: Lighthouse audit
-        runs-on: ubuntu-latest
-        steps:
-          - uses: actions/checkout@v4
-          - name: Run Lighthouse
-            run: npm run lighthouse
-
-# Override workflow-level properties
-name: "My Project CI"
 env:
   PROJECT_NAME: "acme"
+
+hooks:
+  build:
+    # Extend a package job (deep merge)
+    docker-php:
+      extend:
+        provided_by: drupal
+      env:
+        CUSTOM_VAR: "value"
+      needs: [custom-lint] # local/non-prefixed, same stage, project.yml-local
+
+    # Add new project-specific job
+    custom-lint:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Custom lint
+          run: npm run lint
+
+  test:
+    # Replace a package job entirely
+    phpunit:
+      replace:
+        provided_by: drupal
+      runs-on: ubuntu-latest
+      steps:
+        - name: Custom test
+          run: npm test
+
+    # Disable a package job
+    deploy-staging:
+      disable:
+        provided_by: drupal
 ```
+
+`name`, `on`, and `defaults` are only allowed in `configuration.yml`.
 
 ## How It Works
 
-1. **Load configuration** — Read stage topology from `configuration.yml`
+1. **Load configuration** — Read workflow root keys and stage topology from `configuration.yml`
 2. **Load packages** — Parse each `--pkg` file in order
 3. **Load project** — Parse `project.yml` if provided
-4. **Validate** — Check IDs, stage references, directive targets
-5. **Merge jobs** — Apply extend/replace/disable operations
-6. **Expand stages** — Build stage topology with pre-/post- virtual stages
-7. **Compute dependencies** — Generate `needs` chains for sequential stages
+4. **Validate** — Check IDs, stage references, forbidden root keys, directive targets
+5. **Merge file-level env** — Merge package/project root `env` into each job in that same file
+6. **Merge jobs** — Apply extend/replace/disable operations
+7. **Compute dependencies** — Generate `needs` chains for sequential stages and merge explicit local `needs`
 8. **Generate names** — Create display names: `[stage] pkg-id · job-name`
 9. **Render YAML** — Write GitHub Actions workflow file
 
@@ -171,11 +171,11 @@ Generated ID:    build--drupal--docker-php
 Display name:    [build] drupal · Build PHP container
 ```
 
-**Project jobs** (using `new` directive) are not prefixed:
+**Project jobs** (no directive) are not prefixed:
 
 ```
 Original:        lighthouse (in stage test)
-Generated ID:    test--lighthouse
+Generated ID:    lighthouse
 Display name:    [test] Lighthouse audit
 ```
 
@@ -204,8 +204,8 @@ gh-ci-assembler generate [flags]
 
 See `testdata/full-example/` for complete working examples:
 
-- `configuration.yml` — 4-stage pipeline
-- `pkg_base.yml` — Base workflow properties + placeholder job
+- `configuration.yml` — Workflow root keys + 4-stage pipeline
+- `pkg_base.yml` — Base package placeholder job
 - `pkg_drupal.yml` — Drupal build/test/notify jobs
 - `pkg_redis.yml` — Redis build/test/notify/deploy jobs
 - `project.yml` — All customization operations (extend/replace/disable/new)

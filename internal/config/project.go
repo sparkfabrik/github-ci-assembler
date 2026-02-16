@@ -24,22 +24,21 @@ func LoadProject(path string) (*Project, error) {
 
 	proj := &Project{}
 
-	// Extract workflow-level properties.
-	if v, ok := raw["name"]; ok {
-		proj.Name, _ = v.(string)
+	if _, ok := raw["name"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"name\" in project file %q.\n       \"name\" is only allowed in configuration.yml", path)
 	}
-	if v, ok := raw["on"]; ok {
-		m := toMapStringAny(v)
-		if m == nil && v != nil {
-			return nil, fmt.Errorf("invalid \"on\" format in project file %q.\n       \"on\" must be a map (e.g., on: { push: { branches: [main] } }).\n       Shorthand forms like \"on: push\" or \"on: [push, pull_request]\" are not allowed", path)
-		}
-		proj.On = m
+	if _, ok := raw["on"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"on\" in project file %q.\n       \"on\" is only allowed in configuration.yml", path)
 	}
-	if v, ok := raw["defaults"]; ok {
-		proj.Defaults = toMapStringAny(v)
+	if _, ok := raw["defaults"]; ok {
+		return nil, fmt.Errorf("invalid top-level key \"defaults\" in project file %q.\n       \"defaults\" is only allowed in configuration.yml", path)
 	}
 	if v, ok := raw["env"]; ok {
-		proj.Env = toMapStringAny(v)
+		m := toMapStringAny(v)
+		if m == nil && v != nil {
+			return nil, fmt.Errorf("invalid \"env\" format in project file %q: \"env\" must be a map", path)
+		}
+		proj.Env = m
 	}
 
 	// Parse hooks with directive detection.

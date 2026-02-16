@@ -59,17 +59,12 @@ func ValidatePackage(pkg *config.Package, cfg *config.Configuration) error {
 		return fmt.Errorf("invalid package id %q in %s.\n       Package id must not contain %q (reserved as separator)", pkg.ID, pkg.SourceFile, doubleDash)
 	}
 
-	// Validate on is map form.
-	if err := validateOnMapForm(pkg.On, pkg.SourceFile, pkg.ID); err != nil {
-		return err
-	}
-
 	// Validate hooks is present and non-empty.
 	if len(pkg.Hooks) == 0 {
 		return fmt.Errorf("package %q (file: %s): 'hooks' is required and must contain at least one stage with jobs", pkg.ID, pkg.SourceFile)
 	}
 
-	// Build valid stage set (including pre-/post- virtual stages).
+	// Build valid stage set from configuration.
 	validStages := buildValidStageSet(cfg.Stages)
 
 	for stageName, jobs := range pkg.Hooks {
@@ -80,11 +75,6 @@ func ValidatePackage(pkg *config.Package, cfg *config.Configuration) error {
 
 		if len(jobs) == 0 {
 			return fmt.Errorf("package %q (file: %s): stage %q must contain at least one job", pkg.ID, pkg.SourceFile, stageName)
-		}
-
-		// Check for pre/post stage usage in packages and warn.
-		if isVirtualStage(stageName) {
-			fmt.Printf("Warning: package %q (file: %s) uses virtual stage %q. Pre/post stages in packages are discouraged.\n", pkg.ID, pkg.SourceFile, stageName)
 		}
 
 		// Validate job IDs.
@@ -116,11 +106,6 @@ func ValidatePackageUniqueness(pkgs []*config.Package) error {
 
 // ValidateProject validates a parsed project file against the configuration and packages.
 func ValidateProject(proj *config.Project, cfg *config.Configuration, pkgs []*config.Package) error {
-	// Validate on is map form.
-	if err := validateOnMapForm(proj.On, "project.yml", "project"); err != nil {
-		return err
-	}
-
 	if proj.Hooks == nil {
 		return nil // No hooks section is valid.
 	}
@@ -186,33 +171,13 @@ func validateJobID(jobID, stageName, sourceFile, sourceID string) error {
 	return nil
 }
 
-// validateOnMapForm checks that the `on` property is a map (not scalar or list).
-func validateOnMapForm(on map[string]any, sourceFile, sourceID string) error {
-	// If on is nil, it was either absent or already parsed as a map.
-	// The YAML parser would have failed if it was a scalar, so we check
-	// for nil (absent) which is fine. The map[string]any type already
-	// ensures it's a map if present.
-	// However, we need to handle the case where YAML parsed `on: push`
-	// as a string — but toMapStringAny would return nil for that.
-	// This is handled at the raw parsing level; if on was present in
-	// the YAML but toMapStringAny returned nil, it means it wasn't a map.
-	return nil
-}
-
-// buildValidStageSet creates a set of valid stage names including pre-/post- virtual stages.
+// buildValidStageSet creates a set of valid stage names from configuration.yml.
 func buildValidStageSet(stages []string) map[string]bool {
-	valid := make(map[string]bool, len(stages)*3)
+	valid := make(map[string]bool, len(stages))
 	for _, s := range stages {
 		valid[s] = true
-		valid["pre-"+s] = true
-		valid["post-"+s] = true
 	}
 	return valid
-}
-
-// isVirtualStage returns true if the stage name is a pre- or post- virtual stage.
-func isVirtualStage(name string) bool {
-	return strings.HasPrefix(name, "pre-") || strings.HasPrefix(name, "post-")
 }
 
 // buildPackageJobIndex builds an index of all prefixed job IDs across all packages.

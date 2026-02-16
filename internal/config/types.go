@@ -9,20 +9,20 @@ type JobMap = map[string]map[string]any
 // Configuration represents a parsed configuration.yml file.
 // It defines the pipeline skeleton: stage order and schema version.
 type Configuration struct {
-	Version string   `yaml:"version"`
-	Stages  []string `yaml:"stages"`
+	Version  string         `yaml:"version"`
+	Stages   []string       `yaml:"stages"`
+	Name     string         `yaml:"name,omitempty"`
+	On       map[string]any `yaml:"on,omitempty"`
+	Defaults map[string]any `yaml:"defaults,omitempty"`
 }
 
 // Package represents a parsed pkg_*.yml file.
-// Each package contributes jobs to one or more stages and optionally
-// defines workflow-level properties (name, on, defaults, env).
+// Each package contributes jobs to one or more stages and may define
+// a file-scoped env map merged into each job's env.
 type Package struct {
-	ID       string                `yaml:"id"`
-	Name     string                `yaml:"name,omitempty"`
-	On       map[string]any        `yaml:"on,omitempty"`
-	Defaults map[string]any        `yaml:"defaults,omitempty"`
-	Env      map[string]any        `yaml:"env,omitempty"`
-	Hooks    map[string]JobMap     `yaml:"hooks"`
+	ID    string            `yaml:"id"`
+	Env   map[string]any    `yaml:"env,omitempty"`
+	Hooks map[string]JobMap `yaml:"hooks"`
 
 	// SourceFile is the path to the file this package was loaded from.
 	// Not parsed from YAML; set by the loader.
@@ -49,11 +49,8 @@ type ProjectJob struct {
 
 // Project represents a parsed project.yml file.
 type Project struct {
-	Name     string                       `yaml:"name,omitempty"`
-	On       map[string]any               `yaml:"on,omitempty"`
-	Defaults map[string]any               `yaml:"defaults,omitempty"`
-	Env      map[string]any               `yaml:"env,omitempty"`
-	Hooks    map[string]map[string]ProjectJob `yaml:"-"`
+	Env   map[string]any                   `yaml:"env,omitempty"`
+	Hooks map[string]map[string]ProjectJob `yaml:"-"`
 }
 
 // IsNew returns true if the project job is a new job (no directive).
@@ -81,12 +78,8 @@ type AssembledJob struct {
 	// ID is the final job ID in the output (e.g., "build--drupal--docker-php" or "custom-lint").
 	ID string
 
-	// Stage is the stage this job belongs to (including virtual pre-/post- stages).
+	// Stage is the stage this job belongs to.
 	Stage string
-
-	// BaseStage is the underlying real stage (for virtual stages, this is the base;
-	// for real stages, same as Stage).
-	BaseStage string
 
 	// PackageID is the source package ID, or empty for project-contributed jobs.
 	PackageID string
@@ -121,7 +114,6 @@ type WorkflowProperties struct {
 	Name     string
 	On       map[string]any
 	Defaults map[string]any
-	Env      map[string]any
 }
 
 // AssemblyResult holds the complete result of the assembly process.

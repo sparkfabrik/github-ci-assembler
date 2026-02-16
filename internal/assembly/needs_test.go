@@ -116,32 +116,3 @@ func TestComputeNeeds_ExplicitNeedsMerged(t *testing.T) {
 		t.Errorf("first need should be explicit test--a--j2, got %v", needs[0])
 	}
 }
-
-func TestComputeNeeds_PrePostStages(t *testing.T) {
-	jobs := []*config.AssembledJob{
-		{ID: "pre-build--x--setup", Stage: "pre-build"},
-		{ID: "build--a--j1", Stage: "build"},
-		{ID: "post-build--x--notify", Stage: "post-build"},
-	}
-
-	expanded := []ExpandedStage{
-		{Name: "pre-build", Kind: StageKindPre, BaseName: "build"},
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "post-build", Kind: StageKindPost, BaseName: "build"},
-	}
-
-	ComputeNeeds(jobs, expanded)
-
-	// pre-build has no needs.
-	if len(jobs[0].ComputedNeeds) != 0 {
-		t.Errorf("pre-build should have no needs, got %v", jobs[0].ComputedNeeds)
-	}
-	// build depends on pre-build.
-	if len(jobs[1].ComputedNeeds) != 1 || jobs[1].ComputedNeeds[0] != "pre-build--x--setup" {
-		t.Errorf("build should need pre-build--x--setup, got %v", jobs[1].ComputedNeeds)
-	}
-	// post-build depends on build.
-	if len(jobs[2].ComputedNeeds) != 1 || jobs[2].ComputedNeeds[0] != "build--a--j1" {
-		t.Errorf("post-build should need build--a--j1, got %v", jobs[2].ComputedNeeds)
-	}
-}

@@ -16,9 +16,6 @@ on:
 defaults:
   run:
     shell: bash
-env:
-  PHP_VERSION: "8.2"
-  REDIS_VERSION: "7"
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
@@ -30,6 +27,8 @@ jobs:
   build--drupal--docker-nginx:
     name: '[build] drupal · docker-nginx'
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - uses: actions/checkout@v4
       - name: Build nginx configuration
@@ -37,6 +36,8 @@ jobs:
   build--drupal--docker-php:
     name: '[build] drupal · Build PHP image'
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - uses: actions/checkout@v4
       - name: Setup PHP
@@ -53,6 +54,8 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+    env:
+      REDIS_VERSION: "7"
     steps:
       - uses: actions/checkout@v4
       - name: Build Redis image
@@ -62,6 +65,8 @@ jobs:
     name: '[notify] drupal · notify'
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - name: Notify Drupal build complete
         run: echo "Drupal build finished."
@@ -70,6 +75,8 @@ jobs:
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      REDIS_VERSION: "7"
     steps:
       - name: Notify Redis build complete
         run: echo "Redis image built."
@@ -78,6 +85,8 @@ jobs:
     name: '[test] drupal · PHPUnit test suite'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: "8.2"
     steps:
       - uses: actions/checkout@v4
       - name: Run PHPUnit
@@ -86,6 +95,8 @@ jobs:
     name: '[test] redis · job-test'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
+    env:
+      REDIS_VERSION: "7"
     steps:
       - uses: actions/checkout@v4
       - name: Run Redis integration tests
@@ -95,6 +106,8 @@ jobs:
     name: '[deploy] redis · push-redis-image'
     needs: [test--drupal--phpunit, test--redis--job-test]
     runs-on: ubuntu-latest
+    env:
+      REDIS_VERSION: "7"
     steps:
       - uses: actions/checkout@v4
       - name: Push Redis image
