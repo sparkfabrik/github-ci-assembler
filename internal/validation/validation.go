@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	// idPattern matches valid package IDs: lowercase alphanumeric with hyphens.
-	idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	// idPattern matches valid package IDs: lowercase alphanumeric with hyphens and underscores.
+	idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	// jobIDPattern matches valid job IDs: lowercase alphanumeric with hyphens and underscores.
 	jobIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	// stagePattern matches valid stage names.

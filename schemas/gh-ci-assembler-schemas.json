@@ -42,7 +42,7 @@
     "properties": {
       "id": {
         "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "pattern": "^[a-z0-9][a-z0-9_-]*$",
         "description": "Unique package identifier. Used as the job id prefix and as the provided_by target in project.yml. Must be unique across all packages.",
         "minLength": 1,
         "maxLength": 50
@@ -147,7 +147,7 @@
         "properties": {
           "provided_by": {
             "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
             "description": "The id of the package that provides the target job.",
             "minLength": 1
           }

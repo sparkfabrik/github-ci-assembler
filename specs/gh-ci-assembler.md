@@ -142,7 +142,7 @@ Every package must declare an `id` at the top level. This `id`:
 - Is used as the prefix for all job ids contributed by the package
 - Is the value referenced by `provided_by` in `project.yml`
 - Must be unique across all packages in the composition
-- Must match the pattern `[a-z0-9][a-z0-9-]*` (lowercase alphanumeric with hyphens)
+- Must match the pattern `[a-z0-9][a-z0-9_-]*` (lowercase alphanumeric with hyphens)
 
 The filename has no bearing on the package's identity. Renaming `pkg_drupal.yml` to `pkg_drupal-cms.yml` has no effect on the package id, the generated job ids, or any `project.yml` references.
 
@@ -292,7 +292,7 @@ hooks:
 
 **Validation rules for packages:**
 
-- `id` is required and must match `[a-z0-9][a-z0-9-]*`
+- `id` is required and must match `[a-z0-9][a-z0-9_-]*`
 - `id` must be unique across all packages (fail-fast check)
 - `id` must not contain `--` (the double-dash sequence is reserved as a separator)
 - Root-level `name`, `on`, and `defaults` are forbidden in package files (they are only valid in `configuration.yml`)
@@ -906,7 +906,7 @@ Error: Duplicate package id "redis".
 
 ```
 Error: Invalid package id "My-Package" in pkg_bad.yml.
-       Package id must match [a-z0-9][a-z0-9-]* (lowercase, hyphens allowed).
+       Package id must match [a-z0-9][a-z0-9_-]* (lowercase, hyphens allowed).
 ```
 
 ```

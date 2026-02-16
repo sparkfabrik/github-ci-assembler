@@ -144,7 +144,7 @@ Implemented in `internal/validation/validation.go`:
 - `stages` must be non-empty array of strings
 
 **Package:**
-- `id` required, must match `[a-z0-9][a-z0-9-]*`
+- `id` required, must match `[a-z0-9][a-z0-9_-]*`
 - `id` must be unique across all packages
 - `--` forbidden in job IDs (reserved separator)
 - Stage references must exist in configuration
