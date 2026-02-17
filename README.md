@@ -103,7 +103,7 @@ hooks:
 - `id` is required and must be unique across all packages
 - `hooks` maps stages to job definitions (native GHA syntax)
 - Root `name`, `on`, and `defaults` are not allowed in packages
-- Source `needs` values must be non-prefixed local job IDs in the same stage and same file
+- Source `needs` values are preserved and merged with automatic dependencies
 
 ### project.yml (Optional)
 
@@ -121,7 +121,7 @@ hooks:
         provided_by: drupal
       env:
         CUSTOM_VAR: "value"
-      needs: [custom-lint] # local/non-prefixed, same stage, project.yml-local
+      needs: [custom-lint] # must reference output job IDs
 
     # Add new project-specific job
     custom-lint:
@@ -157,7 +157,7 @@ hooks:
 4. **Validate** — Check IDs, stage references, forbidden root keys, directive targets
 5. **Merge file-level env** — Merge package/project root `env` into each job in that same file
 6. **Merge jobs** — Apply extend/replace/disable operations
-7. **Compute dependencies** — Generate `needs` chains for sequential stages and merge explicit local `needs`
+7. **Compute dependencies** — Generate `needs` chains for sequential stages and merge explicit source `needs`
 8. **Generate names** — Create display names: `[stage] pkg-id · job-name`
 9. **Render YAML** — Write GitHub Actions workflow file
 

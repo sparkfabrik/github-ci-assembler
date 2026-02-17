@@ -1,12 +1,13 @@
 package assembly
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sparkfabrik/github-ci-assembler/internal/config"
 )
 
-func TestAssemblePackageJobs_FileEnvAndLocalNeeds(t *testing.T) {
+func TestAssemblePackageJobs_FileEnvAndExplicitNeeds(t *testing.T) {
 	pkg := &config.Package{
 		ID:         "drupal",
 		SourceFile: "pkg_drupal.yml",
@@ -25,7 +26,7 @@ func TestAssemblePackageJobs_FileEnvAndLocalNeeds(t *testing.T) {
 						"SHARED": "from-job",
 						"JOB":    "1",
 					},
-					"needs": []any{"behat"},
+					"needs": []any{"test--drupal--behat"},
 				},
 			},
 		},
@@ -59,7 +60,7 @@ func TestAssemblePackageJobs_FileEnvAndLocalNeeds(t *testing.T) {
 	}
 }
 
-func TestAssemblePackageJobs_InvalidLocalNeedsReference(t *testing.T) {
+func TestAssemblePackageJobs_PreservesUnknownNeedsForPhaseValidation(t *testing.T) {
 	pkg := &config.Package{
 		ID:         "drupal",
 		SourceFile: "pkg_drupal.yml",
@@ -73,12 +74,17 @@ func TestAssemblePackageJobs_InvalidLocalNeedsReference(t *testing.T) {
 		},
 	}
 
-	if _, err := assemblePackageJobs(pkg); err == nil {
-		t.Fatal("expected error for invalid local needs reference, got nil")
+	jobs, err := assemblePackageJobs(pkg)
+	if err != nil {
+		t.Fatalf("assemblePackageJobs() error: %v", err)
+	}
+	phpunit := findJobByID(t, jobs, "test--drupal--phpunit")
+	if len(phpunit.ExplicitNeeds) != 1 || phpunit.ExplicitNeeds[0] != "unknown-job" {
+		t.Fatalf("unexpected explicit needs: %v", phpunit.ExplicitNeeds)
 	}
 }
 
-func TestApplyProjectHooks_FileEnvAndLocalNeeds(t *testing.T) {
+func TestApplyProjectHooks_FileEnvAndExplicitNeeds(t *testing.T) {
 	jobs := []*config.AssembledJob{
 		{
 			ID:            "build--drupal--docker-php",
@@ -140,7 +146,7 @@ func TestApplyProjectHooks_FileEnvAndLocalNeeds(t *testing.T) {
 	}
 }
 
-func TestApplyProjectHooks_InvalidLocalNeedsReference(t *testing.T) {
+func TestApplyProjectHooks_PreservesUnknownNeedsForPhaseValidation(t *testing.T) {
 	jobs := []*config.AssembledJob{
 		{
 			ID:            "build--drupal--docker-php",
@@ -164,8 +170,30 @@ func TestApplyProjectHooks_InvalidLocalNeedsReference(t *testing.T) {
 		},
 	}
 
-	if _, err := applyProjectHooks(jobs, proj); err == nil {
-		t.Fatal("expected error for invalid project local needs reference, got nil")
+	updatedJobs, err := applyProjectHooks(jobs, proj)
+	if err != nil {
+		t.Fatalf("applyProjectHooks() error: %v", err)
+	}
+
+	extended := findJobByID(t, updatedJobs, "build--drupal--docker-php")
+	if len(extended.ExplicitNeeds) != 1 || extended.ExplicitNeeds[0] != "docker-nginx" {
+		t.Fatalf("unexpected explicit needs: %v", extended.ExplicitNeeds)
+	}
+}
+
+func TestValidateExplicitNeeds_InvalidReference(t *testing.T) {
+	jobs := []*config.AssembledJob{
+		{ID: "build--drupal--docker-php", Stage: "build"},
+		{ID: "custom-lint", Stage: "build"},
+		{ID: "test--drupal--phpunit", Stage: "test", ExplicitNeeds: []string{"docker-nginx"}},
+	}
+
+	err := validateExplicitNeeds(jobs)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid needs reference \"docker-nginx\"") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
