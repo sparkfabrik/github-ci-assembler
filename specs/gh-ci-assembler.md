@@ -538,7 +538,7 @@ Phase 2: Load packages
   → Validate forbidden package root keys (name, on, defaults)
   → Merge package-level env into each package job env (job env wins)
   → Prefix all job ids with stage ID and package ID using -- separator
-  → Resolve explicit needs (same-stage, same-package, non-prefixed IDs)
+  → Resolve explicit needs (output job IDs)
 
 Phase 3: Initialize workflow properties
   → Use configuration.yml root keys only (name, on, defaults)
@@ -551,7 +551,7 @@ Phase 4: Apply project configuration
   → Apply replace operations (substitute target jobs)
   → Apply extend operations (deep merge into target jobs)
   → Add new project jobs (unprefixed)
-  → Resolve explicit needs (same-stage, project.yml-local, non-prefixed IDs)
+  → Resolve explicit needs (output job IDs)
 
 Phase 5: Resolve needs chains
   → Identify active stages (stages with at least one job)
@@ -622,14 +622,7 @@ Jobs may explicitly declare a `needs` keyword in their source definition (in eit
 The final `needs` array in the generated workflow contains:
 
 1. **Automatic dependencies:** All computed job IDs from the previous stage (based on linear stage topology)
-2. **Explicit dependencies:** All job IDs from source `needs`, resolved to output IDs
-
-**Job ID resolution rules (source `needs`):**
-
-- Values must be **non-prefixed** job IDs.
-- They must reference jobs in the **same stage** and in the **same source file**.
-- In package files, references are resolved within that package+stage.
-- In project files, references are resolved only within `project.yml` jobs declared in that stage (not directly to package-only jobs).
+2. **Explicit dependencies:** All job IDs from source `needs`
 
 **Example:**
 
@@ -648,21 +641,20 @@ hooks:
     behat:
       # ...
     phpunit:
-      needs: [behat]  # ← non-prefixed, same-stage, same-file
+      needs: [test--drupal--behat]  # ← output job IDs are preserved as declared
       # ...
 ```
 
 After assembly, `test--drupal--phpunit` will have:
 
 - Automatic: `[build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (all jobs from previous stage)
-- Explicit: `[test--drupal--behat]` (resolved from local source needs)
+- Explicit: `[test--drupal--behat]` (preserved from source `needs`)
 - **Final needs:** `[test--drupal--behat, build--drupal--docker-php, build--drupal--docker-nginx, build--redis--docker-redis]` (merged, duplicates removed)
 
 **Validation rules:**
 
 - Invalid `needs` format (not a string array) is a fatal error.
-- Referencing a job outside the same stage or outside the same source file is a fatal error.
-- Referencing unknown local job IDs is a fatal error with the list of allowed local IDs.
+- Referencing unknown job IDs is a fatal error with the list of allowed job IDs.
 
 ### 5.4 Job Name Generation
 
@@ -1039,9 +1031,9 @@ hooks:
       disable:
         provided_by: <package-id>
 
-    # needs values are always local/non-prefixed
+    # needs values must be output job IDs (package jobs are prefixed)
     another-job:
-      needs: [my-job]                 # ← same-stage, project.yml-local IDs only
+      needs: [build--drupal--docker-php]
 ```
 
 ### Deep Merge Rules

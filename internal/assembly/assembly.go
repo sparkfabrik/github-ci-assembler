@@ -79,6 +79,10 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 	}
 
 	// Phase 5: Resolve needs chains.
+	if err := validateExplicitNeeds(allJobs); err != nil {
+		return nil, fmt.Errorf("phase 5 (validate explicit needs): %w", err)
+	}
+
 	// First, determine which stages have jobs.
 	stageHasJobs := make(map[string]bool)
 	for _, j := range allJobs {
@@ -111,11 +115,6 @@ func assemblePackageJobs(pkg *config.Package) ([]*config.AssembledJob, error) {
 	var jobs []*config.AssembledJob
 
 	for stageName, stageJobs := range pkg.Hooks {
-		stageJobIndex := make(map[string]string, len(stageJobs))
-		for jobID := range stageJobs {
-			stageJobIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pkg.ID, jobID)
-		}
-
 		for jobID, rawJobDef := range stageJobs {
 			jobDef := deepCopyMap(rawJobDef)
 			prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pkg.ID, jobID)
@@ -131,11 +130,7 @@ func assemblePackageJobs(pkg *config.Package) ([]*config.AssembledJob, error) {
 			}
 
 			// Extract and consume explicit "needs" if present.
-			localNeeds, err := consumeNeedsList(jobDef, pkg.SourceFile, stageName, jobID)
-			if err != nil {
-				return nil, err
-			}
-			explicitNeeds, err := resolveLocalNeeds(localNeeds, stageJobIndex, pkg.SourceFile, stageName, jobID, "package stage")
+			explicitNeeds, err := consumeNeedsList(jobDef, pkg.SourceFile, stageName, jobID)
 			if err != nil {
 				return nil, err
 			}
@@ -193,28 +188,6 @@ func extractNeedsList(v any, sourceFile, stageName, jobID string) ([]string, err
 	}
 }
 
-func resolveLocalNeeds(localNeeds []string, stageIndex map[string]string, sourceFile, stageName, jobID, scope string) ([]string, error) {
-	if len(localNeeds) == 0 {
-		return nil, nil
-	}
-
-	resolved := make([]string, 0, len(localNeeds))
-	for _, need := range localNeeds {
-		resolvedID, ok := stageIndex[need]
-		if !ok {
-			available := make([]string, 0, len(stageIndex))
-			for id := range stageIndex {
-				available = append(available, id)
-			}
-			sort.Strings(available)
-			return nil, fmt.Errorf("%s, stage %q, job %q: invalid needs reference %q.\n       needs entries must reference non-prefixed job IDs in the same stage and %s.\n       Available job IDs: %v",
-				sourceFile, stageName, jobID, need, scope, available)
-		}
-		resolved = append(resolved, resolvedID)
-	}
-	return resolved, nil
-}
-
 func mergeFileEnvIntoJob(jobDef map[string]any, fileEnv map[string]any) {
 	if len(fileEnv) == 0 {
 		return
@@ -240,8 +213,6 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 		return jobs, nil
 	}
 
-	projectNeedsIndex := buildProjectNeedsIndex(proj)
-
 	// Build job index for quick lookup.
 	jobIndex := make(map[string]*config.AssembledJob, len(jobs))
 	for _, j := range jobs {
@@ -250,8 +221,6 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 
 	for stageName, stageJobs := range proj.Hooks {
 		for jobID, pj := range stageJobs {
-			stageNeedsIndex := projectNeedsIndex[stageName]
-
 			if pj.IsDisable() {
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Disable.ProvidedBy, jobID)
 				if j, ok := jobIndex[prefixedID]; ok {
@@ -269,12 +238,8 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 						sourceName, _ = n.(string)
 						delete(props, "name")
 					}
-					// Extract and resolve explicit needs.
-					localNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
-					if err != nil {
-						return nil, err
-					}
-					explicitNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
+					// Extract explicit needs.
+					explicitNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
 					if err != nil {
 						return nil, err
 					}
@@ -302,11 +267,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 					if err != nil {
 						return nil, err
 					}
-					overlayNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
-					if err != nil {
-						return nil, err
-					}
-					j.ExplicitNeeds = mergeNeeds(j.ExplicitNeeds, overlayNeeds)
+					j.ExplicitNeeds = mergeNeeds(j.ExplicitNeeds, localNeeds)
 					j.Properties = DeepMerge(j.Properties, overlay)
 				}
 			} else {
@@ -318,11 +279,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 					sourceName, _ = n.(string)
 					delete(props, "name")
 				}
-				localNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
-				if err != nil {
-					return nil, err
-				}
-				explicitNeeds, err := resolveLocalNeeds(localNeeds, stageNeedsIndex, "project.yml", stageName, jobID, "project.yml")
+				explicitNeeds, err := consumeNeedsList(props, "project.yml", stageName, jobID)
 				if err != nil {
 					return nil, err
 				}
@@ -345,26 +302,32 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 	return jobs, nil
 }
 
-func buildProjectNeedsIndex(proj *config.Project) map[string]map[string]string {
-	index := make(map[string]map[string]string, len(proj.Hooks))
-	for stageName, stageJobs := range proj.Hooks {
-		stageIndex := make(map[string]string, len(stageJobs))
-		for jobID, pj := range stageJobs {
-			switch {
-			case pj.IsDisable():
-				// Disabled declarations do not produce output jobs.
-				continue
-			case pj.IsExtend():
-				stageIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pj.Extend.ProvidedBy, jobID)
-			case pj.IsReplace():
-				stageIndex[jobID] = fmt.Sprintf("%s--%s--%s", stageName, pj.Replace.ProvidedBy, jobID)
-			default:
-				stageIndex[jobID] = jobID
-			}
+func validateExplicitNeeds(jobs []*config.AssembledJob) error {
+	available := make([]string, 0, len(jobs))
+	availableSet := make(map[string]bool, len(jobs))
+	for _, j := range jobs {
+		if j.Disabled {
+			continue
 		}
-		index[stageName] = stageIndex
+		available = append(available, j.ID)
+		availableSet[j.ID] = true
 	}
-	return index
+	sort.Strings(available)
+
+	for _, j := range jobs {
+		if j.Disabled {
+			continue
+		}
+		for _, need := range j.ExplicitNeeds {
+			if availableSet[need] {
+				continue
+			}
+			return fmt.Errorf("stage %q, job %q: invalid needs reference %q.\n       needs entries must reference existing output job IDs.\n       Available job IDs: %v",
+				j.Stage, j.ID, need, available)
+		}
+	}
+
+	return nil
 }
 
 // sortJobs sorts assembled jobs by their position in the expanded stage topology,
