@@ -987,6 +987,33 @@ Error: Job "docker-php" in stage "build" of project.yml cannot declare
 - [JSON Schema Specification](https://json-schema.org/specification.html)
 
 ---
+## 13. Open Problems
+
+### Dependencies between jobs
+
+Github enables jobs to have dependencies between each other (via the `needs` keyword which is used to create the DAG).
+
+This is how Github [enables jobs to pass information between each other](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs):
+- jobs can declare / expose "outputs".
+- jobs can declare dependencies between each other via the `needs` keyword (DAG construction).
+- the output of dependent jobs are available in the *context*, e.g. `${{needs.<job_id>.output.<name>}}`
+- the job ids that you can find in the `${{needs.<job_id>}}` are **only** the id explicitly set in the `needs` keyword, not the indirect dependencies (deps of deps)
+
+Our assembler, in order to create the workflow DAG, automatically fills the `needs` of a job **with the prefixed job ids** found in the **immediately previous stage** (stage being a concept that we brought over from Gitlab).
+
+These **prefixed job ids** and **immediately previous stage** points bring 2 problems:
+
+**problem 1**: if you want to use job outputs you need to know (and put in the sources) the prefixed job id in the needs context: `${{needs.<prefixed_job_id>.outputs.x}}`
+
+**problem 2**: if you want to use job outputs from jobs that are not in the immediately previous stage you need to know (and put in the sources) the prefixed job id in the needs keyword: `needs: [<prefixed_job_id>]`
+
+#### Actual problems
+
+- If we do not want dependencies between packages `pkg_base` should not be a dependency.
+- Right now we are requiring the use of `<prefixed_job_id>` in the sources (the problem now is in the 2 jobs fs-cli cache and app composer cache but is general).
+- In the project file people will most likely need the 2 jobs fs-cli and composer caches, they will encounter 1 or 2 of the problems above.
+
+---
 
 ## Appendix A: Quick Reference
 
