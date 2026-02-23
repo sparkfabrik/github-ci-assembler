@@ -2,6 +2,10 @@ env:
   DEPLOY_ENV: staging
   SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
 
+permissions:
+  contents: read
+  statuses: write
+
 hooks:
   build:
     # Extend: add project-specific env to Drupal build

@@ -16,6 +16,12 @@ on:
 defaults:
   run:
     shell: bash
+permissions:
+  actions: read
+  checks: write
+  contents: write
+  id-token: write
+  pull-requests: write
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:

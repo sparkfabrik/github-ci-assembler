@@ -9,20 +9,22 @@ type JobMap = map[string]map[string]any
 // Configuration represents a parsed configuration.yml file.
 // It defines the pipeline skeleton: stage order and schema version.
 type Configuration struct {
-	Version  string         `yaml:"version"`
-	Stages   []string       `yaml:"stages"`
-	Name     string         `yaml:"name,omitempty"`
-	On       map[string]any `yaml:"on,omitempty"`
-	Defaults map[string]any `yaml:"defaults,omitempty"`
+	Version     string         `yaml:"version"`
+	Stages      []string       `yaml:"stages"`
+	Name        string         `yaml:"name,omitempty"`
+	On          map[string]any `yaml:"on,omitempty"`
+	Defaults    map[string]any `yaml:"defaults,omitempty"`
+	Permissions map[string]any `yaml:"permissions,omitempty"`
 }
 
 // Package represents a parsed pkg_*.yml file.
 // Each package contributes jobs to one or more stages and may define
 // a file-scoped env map merged into each job's env.
 type Package struct {
-	ID    string            `yaml:"id"`
-	Env   map[string]any    `yaml:"env,omitempty"`
-	Hooks map[string]JobMap `yaml:"hooks"`
+	ID          string            `yaml:"id"`
+	Env         map[string]any    `yaml:"env,omitempty"`
+	Permissions map[string]any    `yaml:"permissions,omitempty"`
+	Hooks       map[string]JobMap `yaml:"hooks"`
 
 	// SourceFile is the path to the file this package was loaded from.
 	// Not parsed from YAML; set by the loader.
@@ -49,8 +51,9 @@ type ProjectJob struct {
 
 // Project represents a parsed project.yml file.
 type Project struct {
-	Env   map[string]any                   `yaml:"env,omitempty"`
-	Hooks map[string]map[string]ProjectJob `yaml:"-"`
+	Env         map[string]any                   `yaml:"env,omitempty"`
+	Permissions map[string]any                   `yaml:"permissions,omitempty"`
+	Hooks       map[string]map[string]ProjectJob `yaml:"-"`
 }
 
 // IsNew returns true if the project job is a new job (no directive).
@@ -111,9 +114,10 @@ type AssembledJob struct {
 
 // WorkflowProperties holds the accumulated workflow-level properties.
 type WorkflowProperties struct {
-	Name     string
-	On       map[string]any
-	Defaults map[string]any
+	Name        string
+	On          map[string]any
+	Defaults    map[string]any
+	Permissions map[string]any
 }
 
 // AssemblyResult holds the complete result of the assembly process.

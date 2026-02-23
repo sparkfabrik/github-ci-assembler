@@ -40,6 +40,13 @@ func LoadProject(path string) (*Project, error) {
 		}
 		proj.Env = m
 	}
+	if v, ok := raw["permissions"]; ok {
+		m := toMapStringAny(v)
+		if m == nil && v != nil {
+			return nil, fmt.Errorf("invalid \"permissions\" format in project file %q: \"permissions\" must be a map", path)
+		}
+		proj.Permissions = m
+	}
 
 	// Parse hooks with directive detection.
 	if hooksRaw, ok := raw["hooks"]; ok {

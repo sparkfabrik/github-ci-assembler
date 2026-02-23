@@ -12,6 +12,10 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  actions: read
+  contents: read
+
 stages:
   - build
   - notify

@@ -16,6 +16,10 @@ on:
 defaults:
   run:
     shell: bash
+permissions:
+  actions: read
+  checks: write
+  contents: read
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:

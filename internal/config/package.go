@@ -45,6 +45,13 @@ func LoadPackage(path string) (*Package, error) {
 		}
 		pkg.Env = m
 	}
+	if v, ok := raw["permissions"]; ok {
+		m := toMapStringAny(v)
+		if m == nil && v != nil {
+			return nil, fmt.Errorf("invalid \"permissions\" format in %s (id: %s): \"permissions\" must be a map", path, pkg.ID)
+		}
+		pkg.Permissions = m
+	}
 
 	// Parse hooks: map[stage] → map[job-id] → map[string]any
 	if hooksRaw, ok := raw["hooks"]; ok {

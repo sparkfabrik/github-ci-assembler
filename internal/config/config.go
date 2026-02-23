@@ -61,6 +61,13 @@ func LoadConfiguration(path string) (*Configuration, error) {
 		}
 		cfg.Defaults = m
 	}
+	if v, ok := raw["permissions"]; ok {
+		m := toMapStringAny(v)
+		if m == nil && v != nil {
+			return nil, fmt.Errorf("invalid \"permissions\" format in %q: \"permissions\" must be a map", path)
+		}
+		cfg.Permissions = m
+	}
 	if _, ok := raw["env"]; ok {
 		return nil, fmt.Errorf("invalid top-level key \"env\" in %q.\n       Root-level env is not supported in configuration.yml", path)
 	}
