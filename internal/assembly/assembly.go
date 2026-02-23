@@ -51,6 +51,8 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 	// Collect all assembled jobs from packages.
 	var allJobs []*config.AssembledJob
 	for _, pkg := range pkgs {
+		wfProps.Permissions = DeepMerge(wfProps.Permissions, pkg.Permissions)
+
 		jobs, err := assemblePackageJobs(pkg)
 		if err != nil {
 			return nil, fmt.Errorf("phase 2 (assemble package jobs): %w", err)
@@ -70,6 +72,7 @@ func (a *Assembler) Assemble() (*config.AssemblyResult, error) {
 		if err := validation.ValidateProject(proj, cfg, pkgs); err != nil {
 			return nil, fmt.Errorf("phase 4 (validate project): %w", err)
 		}
+		wfProps.Permissions = DeepMerge(wfProps.Permissions, proj.Permissions)
 
 		// Apply project hooks.
 		allJobs, err = applyProjectHooks(allJobs, proj)
@@ -152,9 +155,10 @@ func assemblePackageJobs(pkg *config.Package) ([]*config.AssembledJob, error) {
 
 func workflowPropsFromConfiguration(cfg *config.Configuration) config.WorkflowProperties {
 	return config.WorkflowProperties{
-		Name:     cfg.Name,
-		On:       cfg.On,
-		Defaults: cfg.Defaults,
+		Name:        cfg.Name,
+		On:          cfg.On,
+		Defaults:    cfg.Defaults,
+		Permissions: cfg.Permissions,
 	}
 }
 

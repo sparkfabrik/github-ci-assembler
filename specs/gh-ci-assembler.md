@@ -3,13 +3,13 @@
 **Version:** 2.1.1-draft
 **Author:** Platform Team
 **Status:** Draft
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-20
 
 ---
 
 ## 1. Executive Summary
 
-This specification defines a composable CI/CD pipeline system for SparkFabrik's GitHub Actions workflows. Instead of a monolithic workflow per project, the pipeline is assembled from multiple **packages** (`pkg_*.yml`), each contributing jobs to predefined stages and optionally defining workflow-level properties (name, triggers, defaults, environment variables). A **configuration file** defines the stage topology, and an optional **project configuration** allows per-project customizations through three explicit operations: extend, replace, and disable.
+This specification defines a composable CI/CD pipeline system for SparkFabrik's GitHub Actions workflows. Instead of a monolithic workflow per project, the pipeline is assembled from multiple **packages** (`pkg_*.yml`), each contributing jobs to predefined stages and optionally defining root-level workflow permissions plus file-scoped environment variables. A **configuration file** defines the stage topology, and an optional **project configuration** allows per-project customizations through three explicit operations: extend, replace, and disable.
 
 The system generates a standard GitHub Actions workflow YAML file where everything below the job level is native GitHub Actions syntax — no custom DSL, no intermediary abstractions.
 
@@ -60,11 +60,12 @@ The pipeline is assembled from three layers, processed in order:
 configuration.yml          Defines stage topology (structural only)
     │
     ▼
-pkg_*.yml         Each package contributes jobs
+pkg_*.yml         Each package contributes jobs, optional root-level permissions
     │             and optional file-scoped env merged into package jobs
     ▼
 project.yml       Per-project customizations: extend, replace, disable, new jobs,
-    │             and optional file-scoped env merged into project-defined jobs
+    │             optional root-level permissions, and optional file-scoped env
+    │             merged into project-defined jobs
     ▼
 gh-ci-assembler          CLI tool assembles all layers and generates:
 generate
@@ -77,9 +78,9 @@ generate
 
 | Component | Location | Responsibility |
 | ----------- | ---------- | ---------------- |
-| Configuration | `configuration.yml` | Stage topology, schema version, and workflow root keys (`name`, `on`, `defaults`) |
-| Packages | `pkg_*.yml` | Technology-specific jobs and optional file-scoped job `env` defaults |
-| Project Config | `project.yml` | Per-project customizations and optional file-scoped job `env` defaults (optional) |
+| Configuration | `configuration.yml` | Stage topology, schema version, and workflow root keys (`name`, `on`, `defaults`, `permissions`) |
+| Packages | `pkg_*.yml` | Technology-specific jobs, optional file-scoped job `env` defaults, and optional workflow `permissions` overlay |
+| Project Config | `project.yml` | Per-project customizations, optional file-scoped job `env` defaults, and optional workflow `permissions` overlay (optional) |
 | CLI Tool | `sparkfabrik/github-ci-assembler` | Assembles layers, generates workflow YAML |
 
 ### 3.3 Key Design Principles
@@ -114,6 +115,8 @@ defaults:                             # optional
   run:
     shell: <shell>
     working-directory: <dir>
+permissions:                          # optional (map form only)
+  <scope>: <access>
 
 stages:
   - build
@@ -127,9 +130,10 @@ stages:
 | `name` | No | Workflow display name |
 | `on` | No | Workflow triggers (map form only) |
 | `defaults` | No | Workflow-level defaults |
+| `permissions` | No | Base workflow permissions map (deep-merged with package/project `permissions`) |
 | `stages` | Yes | Ordered list of stage names |
 
-`configuration.yml` is the only file allowed to define workflow root keys (`name`, `on`, `defaults`). Root-level `env` is not supported.
+`configuration.yml` is the only file allowed to define root keys `name`, `on`, and `defaults`. Root-level `permissions` may also be declared in package and project files and is deep-merged in assembly order. Root-level `env` is not supported in `configuration.yml`.
 
 ### 4.2 pkg_*.yml (Packages)
 
@@ -163,6 +167,10 @@ id: <package-id>
 env:
   <KEY>: <value>
 
+# Workflow permissions overlay (optional, deep-merged into root permissions)
+permissions:
+  <scope>: <access>
+
 hooks:
   <stage>:
     <job-id>:
@@ -186,13 +194,14 @@ hooks:
 | ------- | ---------- | ------------- |
 | `id` | Yes | Unique package identifier, used as job prefix and `provided_by` target |
 | `env` | No | File-scoped env defaults merged into each job in the package (job `env` wins on conflict) |
+| `permissions` | No | Workflow permissions overlay merged into root workflow `permissions` (later sources win) |
 | `hooks` | Yes | Map of stage → job_id → job definition (native GHA syntax) |
 
-**Forbidden root keys in packages:** `name`, `on`, and `defaults` are invalid in package files and must raise a validation error.
+**Forbidden root keys in packages:** `name`, `on`, and `defaults` are invalid in package files and must raise a validation error. Root-level `permissions` is allowed.
 
 #### 4.2.3 Package Examples
 
-**pkg_base.yml** (base package — defines workflow triggers, defaults, name, and a placeholder job):
+**pkg_base.yml** (base package — defines a placeholder job):
 
 ```yaml
 id: base
@@ -296,6 +305,7 @@ hooks:
 - `id` must be unique across all packages (fail-fast check)
 - `id` must not contain `--` (the double-dash sequence is reserved as a separator)
 - Root-level `name`, `on`, and `defaults` are forbidden in package files (they are only valid in `configuration.yml`)
+- Root-level `permissions`, if present, must be a map
 - `env`, if present, must be a map
 - Stage names must exist in `configuration.yml`
 - Job ids must match `[a-z0-9][a-z0-9_-]*` and **must not contain `--`** (the double-dash sequence is reserved as the stage-id/package-id/job-id separator in generated job identifiers)
@@ -303,11 +313,13 @@ hooks:
 
 ### 4.3 project.yml (Project Configuration)
 
-The project configuration is the **last element in the assembly chain**. It serves two purposes:
+The project configuration is the **last element in the assembly chain**. It serves three purposes:
 
 1. **File-scoped env defaults:** The project file may declare top-level `env`, which is merged into the `env` map of every project-defined job (`new`, `extend`, `replace`) with lower priority than that job's own `env`.
 
-2. **Job customizations:** The project file can customize package-provided jobs through the `hooks` section, using four types of declarations:
+2. **Workflow permissions overlay:** The project file may declare top-level `permissions`, which is deep-merged into the workflow root `permissions` map with highest priority.
+
+3. **Job customizations:** The project file can customize package-provided jobs through the `hooks` section, using four types of declarations:
 
 | Type | Directive | Behavior |
 |------|-----------|----------|
@@ -464,6 +476,9 @@ stages:
 env:
   DEPLOY_ENV: staging
   SLACK_WEBHOOK: "https://hooks.slack.com/services/..."
+permissions:
+  contents: read
+  statuses: write
 
 hooks:
   build:
@@ -527,7 +542,7 @@ The `gh-ci-assembler` CLI tool processes the configuration in the following orde
 ```
 Phase 1: Load configuration
   → Parse configuration.yml
-  → Extract workflow root keys (name, on, defaults)
+  → Extract workflow root keys (name, on, defaults, permissions)
   → Extract stage topology
 
 Phase 2: Load packages
@@ -536,16 +551,19 @@ Phase 2: Load packages
   → Validate id uniqueness across all packages (fail fast)
   → Validate hooks and job definitions against configuration stages
   → Validate forbidden package root keys (name, on, defaults)
+  → Parse optional package root permissions maps
   → Merge package-level env into each package job env (job env wins)
   → Prefix all job ids with stage ID and package ID using -- separator
   → Resolve explicit needs (output job IDs)
 
 Phase 3: Initialize workflow properties
-  → Use configuration.yml root keys only (name, on, defaults)
+  → Initialize from configuration.yml root keys (name, on, defaults, permissions)
+  → Deep-merge package root permissions in --pkg load order
 
 Phase 4: Apply project configuration
   → Load project.yml (if present)
   → Validate forbidden project root keys (name, on, defaults)
+  → Deep-merge project root permissions (highest priority)
   → Merge project-level env into each project-defined job env (job env wins)
   → Apply disable operations (remove target jobs)
   → Apply replace operations (substitute target jobs)
@@ -563,7 +581,7 @@ Phase 6: Generate display names
   → Compute the name property for each job
 
 Phase 7: Render
-  → Emit workflow-level properties (name, on, defaults) as root-level keys
+  → Emit workflow-level properties (name, on, defaults, permissions) as root-level keys
   → Generate valid GitHub Actions workflow YAML
   → Write to output path
 ```
@@ -755,6 +773,13 @@ on:
 defaults:
   run:
     shell: bash
+permissions:
+  actions: read
+  checks: write
+  contents: read
+  id-token: write
+  pull-requests: write
+  statuses: write
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
@@ -1083,8 +1108,9 @@ hooks:
 ### Assembly Chain Priority
 
 ```
-Workflow-level (name, on, defaults):
-  configuration.yml only
+Workflow-level:
+  - name, on, defaults: configuration.yml only
+  - permissions: configuration.yml  →  pkg_*.yml (in --pkg order)  →  project.yml (highest)
 
 Job-level (hooks):
   pkg_*.yml  →  project.yml (extend/replace/disable)
