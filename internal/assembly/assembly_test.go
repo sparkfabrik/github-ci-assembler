@@ -197,6 +197,27 @@ func TestValidateExplicitNeeds_InvalidReference(t *testing.T) {
 	}
 }
 
+func TestWorkflowPropsFromConfiguration_IncludesRootEnv(t *testing.T) {
+	cfg := &config.Configuration{
+		Name:     "CI",
+		On:       map[string]any{"push": map[string]any{}},
+		Defaults: map[string]any{"run": map[string]any{"shell": "bash"}},
+		Env: map[string]any{
+			"GLOBAL_FLAG": "1",
+		},
+		Permissions: map[string]any{"contents": "read"},
+	}
+
+	props := workflowPropsFromConfiguration(cfg)
+
+	if props.Env == nil {
+		t.Fatal("expected workflow env to be set, got nil")
+	}
+	if props.Env["GLOBAL_FLAG"] != "1" {
+		t.Fatalf("unexpected GLOBAL_FLAG value: %v", props.Env["GLOBAL_FLAG"])
+	}
+}
+
 func findJobByID(t *testing.T, jobs []*config.AssembledJob, id string) *config.AssembledJob {
 	t.Helper()
 	for _, j := range jobs {

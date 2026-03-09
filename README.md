@@ -62,6 +62,12 @@ on:
 defaults:
   run:
     shell: bash
+env:
+  CI_ORCHESTRATOR: gh-ci-assembler
+  GLOBAL_TIMEOUT: "600"
+permissions:
+  actions: read
+  contents: read
 
 stages:
   - build
@@ -113,6 +119,9 @@ Customize package jobs per-project, with optional file-scoped env defaults:
 env:
   PROJECT_NAME: "acme"
 
+permissions:
+  statuses: write
+
 hooks:
   build:
     # Extend a package job (deep merge)
@@ -147,11 +156,14 @@ hooks:
         provided_by: drupal
 ```
 
-`name`, `on`, and `defaults` are only allowed in `configuration.yml`.
+`name`, `on`, `defaults`, and root `env` are only allowed in `configuration.yml`.
+Root `permissions` can be declared in `configuration.yml`, `pkg_*.yml`, and `project.yml` (deep-merged in assembly order).
+
+`env` in `pkg_*.yml` and `project.yml` is file-scoped: it merges into jobs declared in that same file and does not contribute to root workflow `env`.
 
 ## How It Works
 
-1. **Load configuration** — Read workflow root keys and stage topology from `configuration.yml`
+1. **Load configuration** — Read workflow root keys (`name`, `on`, `defaults`, `env`, `permissions`) and stage topology from `configuration.yml`
 2. **Load packages** — Parse each `--pkg` file in order
 3. **Load project** — Parse `project.yml` if provided
 4. **Validate** — Check IDs, stage references, forbidden root keys, directive targets
@@ -159,7 +171,7 @@ hooks:
 6. **Merge jobs** — Apply extend/replace/disable operations
 7. **Compute dependencies** — Generate `needs` chains for sequential stages and merge explicit source `needs`
 8. **Generate names** — Create display names: `[stage] pkg-id · job-name`
-9. **Render YAML** — Write GitHub Actions workflow file
+9. **Render YAML** — Write GitHub Actions workflow file with ordered root keys (`name`, `on`, `defaults`, `env`, `permissions`, `jobs`)
 
 ## Job Naming and Prefixing
 
@@ -213,7 +225,7 @@ See `testdata/full-example/` for complete working examples:
 
 ## Specification
 
-Full specification: `specs/gh-ci-assembler.md` (version 2.1.0-draft)
+Full specification: `specs/gh-ci-assembler.md` (version 2.1.2-draft)
 
 Key design principles:
 
