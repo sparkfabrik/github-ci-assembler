@@ -3,7 +3,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/base.schema.json",
     "title": "GitHub CI Assembler Configuration",
-    "description": "Defines the pipeline skeleton: stage topology and schema version. Purely structural — workflow-level properties (name, on, defaults, env) are defined in packages and/or the project file.",
+    "description": "Defines the pipeline skeleton and workflow root properties from configuration.yml.",
     "type": "object",
     "required": [
       "version",
@@ -15,6 +15,31 @@
         "type": "string",
         "const": "1",
         "description": "Schema version. Currently only '1' is supported."
+      },
+      "name": {
+        "type": "string",
+        "description": "Workflow display name.",
+        "minLength": 1
+      },
+      "on": {
+        "type": "object",
+        "description": "Workflow triggers. Must use map form only (no scalar or list shorthand).",
+        "additionalProperties": true
+      },
+      "defaults": {
+        "type": "object",
+        "description": "Workflow-level defaults (e.g., defaults.run.shell).",
+        "additionalProperties": true
+      },
+      "env": {
+        "type": "object",
+        "description": "Workflow-level environment variables emitted at root env in the generated workflow.",
+        "additionalProperties": true
+      },
+      "permissions": {
+        "type": "object",
+        "description": "Base workflow permissions map, deep-merged with package/project permissions overlays.",
+        "additionalProperties": true
       },
       "stages": {
         "type": "array",
@@ -32,7 +57,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/package.schema.json",
     "title": "GitHub CI Assembler Package Configuration",
-    "description": "A package contributing jobs to pipeline stages and optionally defining workflow-level properties. Validates the orchestration layer (id, hooks, stages, job ids). Job definitions below the job id are native GitHub Actions passthrough and are not validated by this schema.",
+    "description": "A package contributing jobs to pipeline stages, optional file-scoped env defaults for package jobs, and an optional workflow permissions overlay.",
     "type": "object",
     "required": [
       "id",
@@ -47,24 +72,14 @@
         "minLength": 1,
         "maxLength": 50
       },
-      "name": {
-        "type": "string",
-        "description": "Workflow display name in GitHub Actions UI. Last definition across packages wins (scalar replacement).",
-        "minLength": 1
-      },
-      "on": {
-        "type": "object",
-        "description": "Workflow triggers. Must use map form only (no scalar or list shorthand). Deep merged across packages in --pkg order.",
-        "additionalProperties": true
-      },
-      "defaults": {
-        "type": "object",
-        "description": "Workflow-level defaults (e.g., defaults.run.shell). Deep merged across packages in --pkg order.",
-        "additionalProperties": true
-      },
       "env": {
         "type": "object",
-        "description": "Workflow-level environment variables. Deep merged across packages in --pkg order.",
+        "description": "File-scoped env defaults merged into each job in this package (job env wins on conflict).",
+        "additionalProperties": true
+      },
+      "permissions": {
+        "type": "object",
+        "description": "Workflow permissions overlay deep-merged into the root workflow permissions map.",
         "additionalProperties": true
       },
       "hooks": {
@@ -93,28 +108,18 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/project.schema.json",
     "title": "GitHub CI Assembler Project Configuration",
-    "description": "Per-project customizations. Can define workflow-level property overrides (name, on, defaults, env) and/or job operations (extend, replace, disable, new). Job properties are native GitHub Actions passthrough and are not validated by this schema.",
+    "description": "Per-project customizations with file-scoped env defaults, an optional workflow permissions overlay, and job operations (extend, replace, disable, new).",
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "name": {
-        "type": "string",
-        "description": "Workflow display name override. Takes highest priority over package-defined names.",
-        "minLength": 1
-      },
-      "on": {
-        "type": "object",
-        "description": "Workflow trigger overrides. Must use map form only. Deep merged on top of package-defined triggers with highest priority.",
-        "additionalProperties": true
-      },
-      "defaults": {
-        "type": "object",
-        "description": "Workflow-level defaults overrides. Deep merged on top of package-defined defaults with highest priority.",
-        "additionalProperties": true
-      },
       "env": {
         "type": "object",
-        "description": "Workflow-level environment variable overrides. Deep merged on top of package-defined env with highest priority.",
+        "description": "File-scoped env defaults merged into each project-defined job (new/extend/replace), with lower priority than each job's own env.",
+        "additionalProperties": true
+      },
+      "permissions": {
+        "type": "object",
+        "description": "Workflow permissions overlay deep-merged into the root workflow permissions map with highest priority.",
         "additionalProperties": true
       },
       "hooks": {

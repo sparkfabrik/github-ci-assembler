@@ -158,6 +158,7 @@ func workflowPropsFromConfiguration(cfg *config.Configuration) config.WorkflowPr
 		Name:        cfg.Name,
 		On:          cfg.On,
 		Defaults:    cfg.Defaults,
+		Env:         cfg.Env,
 		Permissions: cfg.Permissions,
 	}
 }

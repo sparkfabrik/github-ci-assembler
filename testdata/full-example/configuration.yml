@@ -12,6 +12,10 @@ defaults:
   run:
     shell: bash
 
+env:
+  CI_ORCHESTRATOR: gh-ci-assembler
+  GLOBAL_TIMEOUT: "600"
+
 permissions:
   actions: read
   contents: read

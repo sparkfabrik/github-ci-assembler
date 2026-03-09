@@ -46,24 +46,24 @@ schemas/gh-ci-assembler-schemas.json      JSON schemas
 
 ### Core Data Structures (internal/config/types.go)
 
-- **Configuration** — Stage topology (`version`, `stages`)
-- **Package** — Package file data (`id`, `name`, `on`, `defaults`, `env`, `hooks`)
-- **Project** — Project customizations (`name`, `on`, `defaults`, `env`, `hooks`)
+- **Configuration** — Stage topology and workflow root keys (`version`, `stages`, `name`, `on`, `defaults`, `env`, `permissions`)
+- **Package** — Package file data (`id`, `env`, `permissions`, `hooks`)
+- **Project** — Project customizations (`env`, `permissions`, `hooks`)
 - **ProjectJob** — Job customization directive (extend/replace/disable/new + `provided_by`)
 - **AssembledJob** — Job after merge/assembly (ID, stage, package ID, job def, disabled flag)
-- **WorkflowProperties** — Workflow-level data (name, on, defaults, env)
+- **WorkflowProperties** — Workflow-level data (name, on, defaults, env, permissions)
 - **AssemblyResult** — Final output (jobs + workflow properties)
 
 ### Assembly Pipeline (7 Phases)
 
 Implemented in `internal/assembly/assembly.go`:
 
-1. **Load configuration** — Parse stage list
+1. **Load configuration** — Parse stage list and configuration root keys
 2. **Load packages** — Parse each `--pkg` file in order
 3. **Load project** — Parse `project.yml` (optional)
 4. **Validate** — Check IDs, stage refs, directive targets, `on` map-form
 5. **Merge jobs** — Apply extend/replace/disable/new operations
-6. **Expand stages** — Build topology with pre-/post- virtual stages
+6. **Resolve active stages** — Keep configured stages that have jobs
 7. **Compute dependencies** — Generate `needs` arrays
 8. **Generate display names** — Format: `[stage] pkg-id · name`
 9. **Render YAML** — Output with controlled key order and comments
@@ -77,11 +77,11 @@ Implemented in `internal/assembly/assembly.go`:
 3. **CLI framework:** `github.com/spf13/cobra`
 4. **Project structure:** `cmd/` + `internal/` layout
 5. **Hooks validation:** `hooks` must be present and non-empty in packages
-6. **Pre/post stages in packages:** Allowed but emit warning
+6. **Stage references are explicit:** no virtual/pre-post stage expansion
 7. **Project file:** Optional — skip gracefully if `--project` not provided
 8. **Test strategy:** Both unit tests (merge, stages, needs, names) and golden file tests
 9. **Stage name validation:** Underscores allowed in user-defined stage names
-10. **No virtual stage validation:** Pre/post-prefixed stage names in `configuration.yml` not validated (trust users won't do this)
+10. **No virtual stages:** stage names in package/project files must match configuration stages exactly
 11. **Job ID sort in needs arrays:** Sort job IDs within each stage to ensure deterministic `needs` arrays despite Go map iteration randomness. This does NOT affect merge priority — only the cosmetic order of `needs` entries (which GHA treats as a set).
 
 ### Merge Semantics
@@ -128,12 +128,7 @@ Format: `[stage] <pkg-id> · <job-name>` for packages, `[stage] <job-name>` for 
 
 Linear topology: jobs in stage N depend on all jobs in stage N-1.
 
-**Virtual stages:** Any configured stage `foo` automatically gets `pre-foo` and `post-foo` virtual stages. Jobs can be inserted into these stages from packages or project file.
-
-**Stage expansion order:** For stages `[build, test]`:
-```
-pre-build → build → post-build → pre-test → test → post-test
-```
+There are no virtual stages. If you need pre/post behavior, declare those stages explicitly in `configuration.yml`.
 
 ### Validation Rules
 
@@ -163,7 +158,7 @@ Implemented in `internal/validation/validation.go`:
 
 Implemented in `internal/render/render.go`:
 
-- **Controlled key order:** `name`, `on`, `defaults`, `env`, `jobs`
+- **Controlled key order:** `name`, `on`, `defaults`, `env`, `permissions`, `jobs`
 - **Stage separator comments:** `# ===== Stage: {stage} =====` between stages
 - **Disabled job comments:** `# Disabled by project: {job-id}`
 - **Auto-generated header:** Warns against manual editing, includes timestamp
@@ -200,11 +195,11 @@ All fixtures in `testdata/full-example/`:
 
 - **configuration.yml:** 4 stages `[build, notify, test, deploy]`
 - **pkg_base.yml:** Workflow props + placeholder job in build
-- **pkg_drupal.yml:** Build/test/notify jobs + workflow env
-- **pkg_redis.yml:** Build/test/notify/deploy jobs + workflow env
+- **pkg_drupal.yml:** Build/test/notify jobs + package file-scoped env
+- **pkg_redis.yml:** Build/test/notify/deploy jobs + package file-scoped env
 - **project.yml:** All operations (extend/replace/disable/new) + workflow overrides
 
-**Important:** Stage names in testdata must NOT look like virtual stage prefixes. Use names like `notify` instead of `post_build` to avoid confusion.
+**Important:** Root workflow `env` is defined only in `configuration.yml`; package/project top-level `env` is file-scoped to jobs declared in those files.
 
 ## Common Development Tasks
 
@@ -293,5 +288,5 @@ This is an internal SparkFabrik tool. For questions or issues, contact the Platf
 
 ---
 
-**Last Updated:** 2026-02-12
-**Document Version:** 1.0
+**Last Updated:** 2026-03-09
+**Document Version:** 1.1

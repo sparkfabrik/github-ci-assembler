@@ -7,13 +7,14 @@ package config
 type JobMap = map[string]map[string]any
 
 // Configuration represents a parsed configuration.yml file.
-// It defines the pipeline skeleton: stage order and schema version.
+// It defines the pipeline skeleton and workflow root properties.
 type Configuration struct {
 	Version     string         `yaml:"version"`
 	Stages      []string       `yaml:"stages"`
 	Name        string         `yaml:"name,omitempty"`
 	On          map[string]any `yaml:"on,omitempty"`
 	Defaults    map[string]any `yaml:"defaults,omitempty"`
+	Env         map[string]any `yaml:"env,omitempty"`
 	Permissions map[string]any `yaml:"permissions,omitempty"`
 }
 
@@ -117,6 +118,7 @@ type WorkflowProperties struct {
 	Name        string
 	On          map[string]any
 	Defaults    map[string]any
+	Env         map[string]any
 	Permissions map[string]any
 }
 
