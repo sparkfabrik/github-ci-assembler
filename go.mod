@@ -1,6 +1,6 @@
 module github.com/sparkfabrik/github-ci-assembler
 
-go 1.25.6
+go 1.25
 
 require (
 	github.com/spf13/cobra v1.10.2
