@@ -13,7 +13,7 @@ func TestGenerateDisplayNames_PackageJobWithName(t *testing.T) {
 
 	GenerateDisplayNames(jobs)
 
-	expected := "[build] drupal · Build PHP image"
+	expected := "Build PHP image - drupal [build]"
 	if jobs[0].DisplayName != expected {
 		t.Errorf("got %q, want %q", jobs[0].DisplayName, expected)
 	}
@@ -26,7 +26,7 @@ func TestGenerateDisplayNames_PackageJobWithoutName(t *testing.T) {
 
 	GenerateDisplayNames(jobs)
 
-	expected := "[build] drupal · docker-nginx"
+	expected := "docker-nginx - drupal [build]"
 	if jobs[0].DisplayName != expected {
 		t.Errorf("got %q, want %q", jobs[0].DisplayName, expected)
 	}
@@ -39,7 +39,7 @@ func TestGenerateDisplayNames_ProjectJobWithName(t *testing.T) {
 
 	GenerateDisplayNames(jobs)
 
-	expected := "[test] Security scan"
+	expected := "Security scan [test]"
 	if jobs[0].DisplayName != expected {
 		t.Errorf("got %q, want %q", jobs[0].DisplayName, expected)
 	}
@@ -52,7 +52,7 @@ func TestGenerateDisplayNames_ProjectJobWithoutName(t *testing.T) {
 
 	GenerateDisplayNames(jobs)
 
-	expected := "[test] custom-lint"
+	expected := "custom-lint [test]"
 	if jobs[0].DisplayName != expected {
 		t.Errorf("got %q, want %q", jobs[0].DisplayName, expected)
 	}

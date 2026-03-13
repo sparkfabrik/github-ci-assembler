@@ -29,13 +29,13 @@ permissions:
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
-    name: '[build] base · placeholder'
+    name: placeholder - base [build]
     runs-on: ubuntu-latest
     steps:
       - name: Placeholder
         run: echo "Base package placeholder"
   build--drupal--docker-nginx:
-    name: '[build] drupal · docker-nginx'
+    name: docker-nginx - drupal [build]
     runs-on: ubuntu-latest
     env:
       PHP_VERSION: "8.2"
@@ -44,7 +44,7 @@ jobs:
       - name: Build nginx configuration
         run: ./scripts/build-nginx.sh
   build--drupal--docker-php:
-    name: '[build] drupal · Build PHP image'
+    name: Build PHP image - drupal [build]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -66,7 +66,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction
   build--redis--docker-redis:
-    name: '[build] redis · Build Redis image'
+    name: Build Redis image - redis [build]
     runs-on: ubuntu-latest
     env:
       DEPLOY_ENV: staging
@@ -77,7 +77,7 @@ jobs:
         run: ./scripts/build-redis.sh
   #  ── Stage: notify ────────────────────────────────────
   notify--drupal--notify:
-    name: '[notify] drupal · notify'
+    name: notify - drupal [notify]
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     env:
@@ -90,7 +90,7 @@ jobs:
           curl -X POST $SLACK_WEBHOOK \
             -d '{"text": "Build complete for ${{ github.repository }}"}'
   notify--redis--notify:
-    name: '[notify] redis · notify'
+    name: notify - redis [notify]
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -102,7 +102,7 @@ jobs:
   #  ── Stage: test ──────────────────────────────────────
   #  test--redis--job-test: DISABLED by project.yml
   custom-lint:
-    name: '[test] custom-lint'
+    name: custom-lint [test]
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
     env:
@@ -113,7 +113,7 @@ jobs:
       - name: Run project linter
         run: ./scripts/lint.sh
   test--drupal--phpunit:
-    name: '[test] drupal · PHPUnit test suite'
+    name: PHPUnit test suite - drupal [test]
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
     env:
@@ -124,7 +124,7 @@ jobs:
         run: vendor/bin/phpunit --coverage-text
   #  ── Stage: deploy ────────────────────────────────────
   deploy--redis--push-redis-image:
-    name: '[deploy] redis · push-redis-image'
+    name: push-redis-image - redis [deploy]
     needs: [custom-lint, test--drupal--phpunit]
     runs-on: ubuntu-latest
     env:

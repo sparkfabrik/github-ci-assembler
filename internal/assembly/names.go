@@ -9,10 +9,10 @@ import (
 // GenerateDisplayNames computes the name property for each job in the output workflow.
 //
 // Format:
-//   - Package job with name:    [stage] pkg-id · name
-//   - Package job without name: [stage] pkg-id · job-id
-//   - Project job with name:    [stage] name
-//   - Project job without name: [stage] job-id
+//   - Package job with name:    name - pkg-id [stage]
+//   - Package job without name: job-id - pkg-id [stage]
+//   - Project job with name:    name [stage]
+//   - Project job without name: job-id [stage]
 func GenerateDisplayNames(jobs []*config.AssembledJob) {
 	for _, j := range jobs {
 		if j.Disabled {
@@ -25,14 +25,14 @@ func GenerateDisplayNames(jobs []*config.AssembledJob) {
 			if j.SourceName != "" {
 				humanPart = j.SourceName
 			}
-			j.DisplayName = fmt.Sprintf("[%s] %s · %s", j.Stage, j.PackageID, humanPart)
+			j.DisplayName = fmt.Sprintf("%s - %s [%s]", humanPart, j.PackageID, j.Stage)
 		} else {
 			// Project new job.
 			humanPart := j.OriginalJobID
 			if j.SourceName != "" {
 				humanPart = j.SourceName
 			}
-			j.DisplayName = fmt.Sprintf("[%s] %s", j.Stage, humanPart)
+			j.DisplayName = fmt.Sprintf("%s [%s]", humanPart, j.Stage)
 		}
 	}
 }

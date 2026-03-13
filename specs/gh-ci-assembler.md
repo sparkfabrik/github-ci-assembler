@@ -93,7 +93,7 @@ generate
 
 **Project jobs are not prefixed.** Jobs contributed directly by `project.yml` (new jobs, not extending or replacing) appear with their original id. They are first-class citizens in the output, visually distinct from package-provided jobs.
 
-**Automatic job display name.** The tool generates a `name` property for every job to provide clear, hierarchical display in the GitHub Actions UI. The format uses bracket notation to show the stage, package origin, and job purpose at a glance. See section 6.2 for the complete naming rules.
+**Automatic job display name.** The tool generates a `name` property for every job to provide clear, hierarchical display in the GitHub Actions UI. The format puts the human-readable job name first, followed by the package origin and the stage in brackets. See section 6.2 for the complete naming rules.
 
 **Linear stage topology.** Stages are processed sequentially in the exact order declared in `configuration.yml`. Every job in stage N depends on all jobs in stage N-1. Empty stages are skipped transparently.
 
@@ -685,21 +685,21 @@ The tool generates a `name` property for every job in the output workflow. The d
 
 | Job origin | Has `name` in source | Generated display name |
 | ------------ | --------------------- | ---------------------- |
-| Package | Yes | `[stage] package-id · name` |
-| Package | No | `[stage] package-id · job-id` |
-| Project (new) | Yes | `[stage] name` |
-| Project (new) | No | `[stage] job-id` |
+| Package | Yes | `name - package-id [stage]` |
+| Package | No | `job-id - package-id [stage]` |
+| Project (new) | Yes | `name [stage]` |
+| Project (new) | No | `job-id [stage]` |
 | Project (extend/replace) | — | Same rules as package (keeps package origin) |
 
-**Examples with the bracket notation:**
+**Examples:**
 
 ```
-[build] drupal · Build PHP image         ← package job with name declared
-[build] drupal · docker-nginx            ← package job without name (falls back to job id)
-[build] redis · Build Redis image        ← package job with name declared
-[post-build] my-extra-job                ← project job without name (no package prefix)
-[test] Security scan                     ← project job with name declared
-[deploy] redis · push-redis-image        ← package job without name
+Build PHP image - drupal [build]         ← package job with name declared
+docker-nginx - drupal [build]            ← package job without name (falls back to job id)
+Build Redis image - redis [build]        ← package job with name declared
+my-extra-job [post-build]                ← project job without name (no package prefix)
+Security scan [test]                     ← project job with name declared
+push-redis-image - redis [deploy]        ← package job without name
 ```
 
 **Rules:**
@@ -707,7 +707,7 @@ The tool generates a `name` property for every job in the output workflow. The d
 - The `name` declared in the source file is never passed through as-is. The tool always wraps it in the bracket notation.
 - If a job declares `name` in the source, the tool uses that as the human-readable portion. If not, it uses the `job-id`.
 - The `name` property in the source file is consumed by the tool and replaced in the output. It is not a native GitHub Actions passthrough — it is the only exception to the "everything below job-id is native GHA" rule.
-- Project jobs that extend or replace a package job retain the package origin in their display name (they appear as `[stage] package-id · ...` since the job id in the output is still prefixed with `stage--package-id--`).
+- Project jobs that extend or replace a package job retain the package origin in their display name (they appear as `name - package-id [stage]` since the job id in the output is still prefixed with `stage--package-id--`).
 
 ### 5.5 Deep Merge Algorithm
 
@@ -789,26 +789,26 @@ permissions:
 jobs:
   #  ── Stage: build ─────────────────────────────────────
   build--base--placeholder:
-    name: '[build] base · placeholder'
+    name: 'placeholder - base [build]'
     runs-on: ubuntu-latest
     steps:
       - name: Placeholder
         run: echo "Base package placeholder"
   build--drupal--docker-nginx:
-    name: '[build] drupal · docker-nginx'
+    name: 'docker-nginx - drupal [build]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build nginx configuration
         run: ./scripts/build-nginx.sh
   build--drupal--docker-php:
-    name: '[build] drupal · Build PHP image'
+    name: 'Build PHP image - drupal [build]'
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
         ports:
-          - 5432:5432
+          - "5432:5432"
     env:
       DATABASE_URL: postgres://db:5432/myapp
       REDIS_HOST: redis
@@ -821,7 +821,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction
   build--redis--docker-redis:
-    name: '[build] redis · Build Redis image'
+    name: 'Build Redis image - redis [build]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -829,7 +829,7 @@ jobs:
         run: ./scripts/build-redis.sh
   #  ── Stage: notify ────────────────────────────────────
   notify--drupal--notify:
-    name: '[notify] drupal · notify'
+    name: 'notify - drupal [notify]'
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     steps:
@@ -838,7 +838,7 @@ jobs:
           curl -X POST $SLACK_WEBHOOK \
             -d '{"text": "Build complete for ${{ github.repository }}"}'
   notify--redis--notify:
-    name: '[notify] redis · notify'
+    name: 'notify - redis [notify]'
     needs: [build--base--placeholder, build--drupal--docker-nginx, build--drupal--docker-php, build--redis--docker-redis]
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -848,7 +848,7 @@ jobs:
   #  ── Stage: test ──────────────────────────────────────
   #  test--redis--job-test: DISABLED by project.yml
   custom-lint:
-    name: '[test] custom-lint'
+    name: 'custom-lint [test]'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
     steps:
@@ -856,7 +856,7 @@ jobs:
       - name: Run project linter
         run: ./scripts/lint.sh
   test--drupal--phpunit:
-    name: '[test] drupal · PHPUnit test suite'
+    name: 'PHPUnit test suite - drupal [test]'
     needs: [notify--drupal--notify, notify--redis--notify]
     runs-on: ubuntu-latest
     steps:
@@ -865,7 +865,7 @@ jobs:
         run: vendor/bin/phpunit --coverage-text
   #  ── Stage: deploy ────────────────────────────────────
   deploy--redis--push-redis-image:
-    name: '[deploy] redis · push-redis-image'
+    name: 'push-redis-image - redis [deploy]'
     needs: [custom-lint, test--drupal--phpunit]
     runs-on: ubuntu-latest
     steps:
@@ -1106,10 +1106,10 @@ hooks:
 
 | Origin | Format | Example |
 |--------|--------|---------|
-| Package job with `name` | `[stage] pkg-id · name` | `[build] drupal · Build PHP image` |
-| Package job without `name` | `[stage] pkg-id · job-id` | `[build] drupal · docker-nginx` |
-| Project job with `name` | `[stage] name` | `[test] Security scan` |
-| Project job without `name` | `[stage] job-id` | `[test] custom-lint` |
+| Package job with `name` | `name - pkg-id [stage]` | `Build PHP image - drupal [build]` |
+| Package job without `name` | `job-id - pkg-id [stage]` | `docker-nginx - drupal [build]` |
+| Project job with `name` | `name [stage]` | `Security scan [test]` |
+| Project job without `name` | `job-id [stage]` | `custom-lint [test]` |
 
 ### Assembly Chain Priority
 

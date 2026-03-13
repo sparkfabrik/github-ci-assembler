@@ -65,7 +65,7 @@ Implemented in `internal/assembly/assembly.go`:
 5. **Merge jobs** — Apply extend/replace/disable/new operations
 6. **Resolve active stages** — Keep configured stages that have jobs
 7. **Compute dependencies** — Generate `needs` arrays
-8. **Generate display names** — Format: `[stage] pkg-id · name`
+8. **Generate display names** — Format: `name - pkg-id [stage]`
 9. **Render YAML** — Output with controlled key order and comments
 
 ## Key Design Decisions
@@ -107,16 +107,16 @@ Implemented in `internal/assembly/names.go`:
 **Package jobs:**
 ```
 ID:          build--drupal--docker-php
-Display:     [build] drupal · Build PHP container
+Display:     Build PHP container - drupal [build]
 ```
 
 **Project jobs (new directive):**
 ```
 ID:          test--lighthouse
-Display:     [test] Lighthouse audit
+Display:     Lighthouse audit [test]
 ```
 
-Format: `[stage] <pkg-id> · <job-name>` for packages, `[stage] <job-name>` for project jobs.
+Format: `<job-name> - <pkg-id> [stage]` for packages, `<job-name> [stage]` for project jobs.
 
 ### Job Prefixing
 
