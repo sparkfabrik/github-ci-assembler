@@ -3,18 +3,66 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/sparkfabrik/github-ci-assembler/internal/assembly"
 	"github.com/sparkfabrik/github-ci-assembler/internal/render"
 	"github.com/spf13/cobra"
 )
 
-// Version information set by goreleaser at build time
+// Version information set by goreleaser at build time via -ldflags.
+// When not set (dev builds, go install without ldflags), these stay at their
+// defaults and buildInfo() enriches them from the embedded VCS/module info.
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
+
+// versionString returns the full version string, falling back to embedded
+// runtime build info when the binary was not built by GoReleaser.
+func versionString() string {
+	// GoReleaser sets version to a real semver; skip the fallback.
+	if version != "dev" {
+		return fmt.Sprintf("gh-ci-assembler %s (commit: %s, built: %s)", version, commit, date)
+	}
+
+	// Try to read VCS / module info embedded by the Go toolchain.
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fmt.Sprintf("gh-ci-assembler %s (commit: %s, built: %s)", version, commit, date)
+	}
+
+	// When installed via "go install .../cmd/...@<ref>" the module version
+	// reflects the ref (tag or pseudo-version), giving a meaningful string
+	// even without ldflags.
+	modVersion := info.Main.Version // e.g. "v0.3.1" or "(devel)"
+
+	// Walk the VCS settings embedded by "go build" from a git checkout.
+	var vcsRevision, vcsTime, vcsDirty string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if len(s.Value) > 12 {
+				vcsRevision = s.Value[:12]
+			} else {
+				vcsRevision = s.Value
+			}
+		case "vcs.time":
+			vcsTime = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				vcsDirty = "-dirty"
+			}
+		}
+	}
+
+	if vcsRevision != "" {
+		return fmt.Sprintf("gh-ci-assembler %s (commit: %s%s, built: %s)", modVersion, vcsRevision, vcsDirty, vcsTime)
+	}
+	// Fallback: module version only (e.g. built from module cache without VCS).
+	return fmt.Sprintf("gh-ci-assembler %s", modVersion)
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -26,7 +74,7 @@ GitHub Actions workflow YAML file.`,
 	}
 
 	// Customize version template
-	rootCmd.SetVersionTemplate(fmt.Sprintf("gh-ci-assembler %s (commit: %s, built: %s)\n", version, commit, date))
+	rootCmd.SetVersionTemplate(versionString() + "\n")
 
 	rootCmd.AddCommand(newGenerateCmd())
 
