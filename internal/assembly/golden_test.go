@@ -4,14 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/sparkfabrik/github-ci-assembler/internal/assembly"
 	"github.com/sparkfabrik/github-ci-assembler/internal/render"
 )
-
-// fixedTime is a deterministic timestamp for golden file comparison.
-var fixedTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func TestGolden_FullExample(t *testing.T) {
 	root := findTestdataDir(t)
@@ -32,7 +28,7 @@ func TestGolden_FullExample(t *testing.T) {
 		t.Fatalf("Assemble() failed: %v", err)
 	}
 
-	output, err := render.Render(result, render.RenderOptions{GeneratedTime: fixedTime})
+	output, err := render.Render(result)
 	if err != nil {
 		t.Fatalf("Render() failed: %v", err)
 	}
@@ -112,7 +108,7 @@ func TestGolden_PackagesOnly(t *testing.T) {
 		t.Fatalf("Assemble() failed: %v", err)
 	}
 
-	output, err := render.Render(result, render.RenderOptions{GeneratedTime: fixedTime})
+	output, err := render.Render(result)
 	if err != nil {
 		t.Fatalf("Render() failed: %v", err)
 	}
@@ -187,7 +183,7 @@ func TestGolden_SinglePackage(t *testing.T) {
 		t.Fatalf("Assemble() failed: %v", err)
 	}
 
-	output, err := render.Render(result, render.RenderOptions{GeneratedTime: fixedTime})
+	output, err := render.Render(result)
 	if err != nil {
 		t.Fatalf("Render() failed: %v", err)
 	}
