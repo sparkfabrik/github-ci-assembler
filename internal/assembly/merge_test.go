@@ -153,3 +153,67 @@ func TestDeepMerge_NestedConflict(t *testing.T) {
 		t.Error("ports should be preserved from base")
 	}
 }
+
+func TestDeepMerge_MapReplacedByScalar(t *testing.T) {
+	base := map[string]any{
+		"services": map[string]any{
+			"mysql": map[string]any{
+				"image": "mysql:8",
+			},
+		},
+	}
+	overlay := map[string]any{
+		"services": "none",
+	}
+
+	result := DeepMerge(base, overlay)
+
+	if result["services"] != "none" {
+		t.Errorf("expected services=%q when overlay is scalar, got %v (type %T)",
+			"none", result["services"], result["services"])
+	}
+}
+
+func TestDeepMerge_ScalarReplacedByMap(t *testing.T) {
+	base := map[string]any{
+		"services": "none",
+	}
+	overlay := map[string]any{
+		"services": map[string]any{
+			"redis": map[string]any{
+				"image": "redis:7",
+			},
+		},
+	}
+
+	result := DeepMerge(base, overlay)
+
+	services, ok := result["services"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected services to be a map after overlay, got %T", result["services"])
+	}
+	if _, ok := services["redis"]; !ok {
+		t.Error("expected redis service to be present")
+	}
+}
+
+func TestDeepCopyMap_NilInput(t *testing.T) {
+	result := deepCopyMap(nil)
+	if result != nil {
+		t.Errorf("deepCopyMap(nil) = %v, want nil", result)
+	}
+}
+
+func TestDeepCopySlice_NilInput(t *testing.T) {
+	result := deepCopySlice(nil)
+	if result != nil {
+		t.Errorf("deepCopySlice(nil) = %v, want nil", result)
+	}
+}
+
+func TestCopyMap_NilInput(t *testing.T) {
+	result := copyMap(nil)
+	if result != nil {
+		t.Errorf("copyMap(nil) = %v, want nil", result)
+	}
+}
