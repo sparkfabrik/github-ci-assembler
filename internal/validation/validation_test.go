@@ -8,7 +8,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// TestValidateConfiguration — 8 cases
+// TestValidateConfiguration
 // ---------------------------------------------------------------------------
 
 func TestValidateConfiguration(t *testing.T) {
@@ -118,7 +118,7 @@ func TestValidateConfiguration(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestValidatePackage — 11 cases
+// TestValidatePackage
 // ---------------------------------------------------------------------------
 
 func TestValidatePackage(t *testing.T) {
@@ -356,7 +356,7 @@ func TestValidatePackageUniqueness(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestValidateProject — 11 cases
+// TestValidateProject — 12 cases
 // ---------------------------------------------------------------------------
 
 func TestValidateProject(t *testing.T) {

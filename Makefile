@@ -18,6 +18,7 @@ clean:
 	@rm -f gh-ci-assembler
 	@echo "Clean complete."
 
+.PHONY: test test-coverage test-coverage-html
 test:
 	@echo "Running tests..."
 	@go test -cover ./...
