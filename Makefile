@@ -17,3 +17,21 @@ clean:
 	@echo "Cleaning up build artifacts..."
 	@rm -f gh-ci-assembler
 	@echo "Clean complete."
+
+.PHONY: test test-coverage test-coverage-html
+test:
+	@echo "Running tests..."
+	@go test -cover ./...
+	@echo "Tests complete."
+
+test-coverage:
+	@echo "Running tests with detailed coverage..."
+	@go test -coverprofile=coverage.out -covermode=atomic ./...
+	@go tool cover -func=coverage.out
+
+test-coverage-html:
+	@echo "Running tests with coverage..."
+	@go test -coverprofile coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "Test coverage report generated at coverage.html"
+	@xdg-open coverage.html

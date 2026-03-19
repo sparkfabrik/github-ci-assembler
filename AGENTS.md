@@ -6,7 +6,7 @@ This document provides context for AI coding assistants working on the `gh-ci-as
 
 **gh-ci-assembler** is a Go CLI tool that assembles modular GitHub Actions workflows from reusable packages. It implements a composable CI/CD pipeline system based on the specification in `specs/gh-ci-assembler.md`
 
-**Module path:** `github.com/sparkfabrik/github-ci-assembler`  
+**Module path:** `github.com/sparkfabrik/github-ci-assembler`
 
 **Go version:** 1.25.6 (triggers LSP warnings but builds successfully)
 
@@ -94,6 +94,7 @@ Deep merge follows Kubernetes strategic merge patch rules (see `internal/assembl
 - **Scalars:** Replace
 
 Merge priority (lowest to highest):
+
 1. First package
 2. Second package
 3. ...
@@ -105,12 +106,14 @@ Merge priority (lowest to highest):
 Implemented in `internal/assembly/names.go`:
 
 **Package jobs:**
+
 ```
 ID:          build--drupal--docker-php
 Display:     Build PHP container - drupal [build]
 ```
 
 **Project jobs (new directive):**
+
 ```
 ID:          test--lighthouse
 Display:     Lighthouse audit [test]
@@ -135,10 +138,12 @@ There are no virtual stages. If you need pre/post behavior, declare those stages
 Implemented in `internal/validation/validation.go`:
 
 **Configuration:**
+
 - `version` must be `"1"`
 - `stages` must be non-empty array of strings
 
 **Package:**
+
 - `id` required, must match `[a-z0-9][a-z0-9_-]*`
 - `id` must be unique across all packages
 - `--` forbidden in job IDs (reserved separator)
@@ -148,6 +153,7 @@ Implemented in `internal/validation/validation.go`:
 - `hooks` must be non-empty
 
 **Project:**
+
 - All directives (extend/replace/disable/new) must target valid stages
 - `provided_by` references must resolve to existing package IDs
 - Job IDs must exist in target package (for extend/replace/disable)
@@ -169,14 +175,17 @@ Implemented in `internal/render/render.go`:
 
 ### Unit Tests
 
-Located in `internal/assembly/*_test.go`:
+Located in the following files:
 
-- `merge_test.go` — 6 tests for deep merge algorithm
-- `stages_test.go` — 5 tests for stage expansion + ParseVirtualStage
-- `needs_test.go` — 5 tests for dependency computation
-- `names_test.go` — 5 tests for display name generation
+- `internal/assembly/merge_test.go` — 8 tests for the deep merge algorithm
+- `internal/assembly/stages_test.go` — 5 tests for stage expansion logic
+- `internal/assembly/needs_test.go` — 7 tests for dependency computation and needs merging
+- `internal/assembly/names_test.go` — 5 tests for display name generation
+- `internal/config/config_test.go` — 21+ tests for configuration, package, and project file parsing and validation
+- `internal/validation/validation_test.go` — 4 main tests (with multiple cases) for configuration, package, and project validation logic
+- `internal/render/render_test.go` — 13+ tests for YAML rendering, property order, comments, and output structure
 
-**Total: 21 tests** (all passing as of 2026-02-12)
+**Total:** 60+ unit tests (as of 2026-03-18)
 
 ### Golden File Tests
 
@@ -193,11 +202,11 @@ Located in `internal/assembly/golden_test.go`:
 
 All fixtures in `testdata/full-example/`:
 
-- **configuration.yml:** 4 stages `[build, notify, test, deploy]`
-- **pkg_base.yml:** Workflow props + placeholder job in build
-- **pkg_drupal.yml:** Build/test/notify jobs + package file-scoped env
-- **pkg_redis.yml:** Build/test/notify/deploy jobs + package file-scoped env
-- **project.yml:** All operations (extend/replace/disable/new) + workflow overrides
+- `configuration.yml:` 4 stages `[build, notify, test, deploy]`
+- `pkg_base.yml:` Workflow props + placeholder job in build
+- `pkg_drupal.yml:` Build/test/notify jobs + package file-scoped env
+- `pkg_redis.yml:` Build/test/notify/deploy jobs + package file-scoped env
+- `project.yml:` All operations (extend/replace/disable/new) + workflow overrides
 
 **Important:** Root workflow `env` is defined only in `configuration.yml`; package/project top-level `env` is file-scoped to jobs declared in those files.
 
@@ -225,6 +234,9 @@ go test ./internal/assembly
 
 # With verbose output
 go test -v ./...
+
+# With coverage report
+go test -cover ./...
 
 # Update golden files
 UPDATE_GOLDEN=1 go test ./internal/assembly
@@ -278,9 +290,10 @@ When continuing work on this project:
 3. **Run tests after changes:** `go test ./...`
 4. **Run formatting** `go fmt ./...` or `gofmt` (with the options you deem necessary)
 5. **Run linting:** `golangci-lint run`
-6. **Update golden files** if output format changes
-7. **Update this file** when making new design decisions
-8. **Verify build** after any import path changes: `go build ./...`
+6. **Implement tests for new logic** before implementing the logic itself (TDD approach) based on the specifications
+7. **Update golden files** if output format changes
+8. **Update this file** when making new design decisions or changing existing ones, update the "Testing" section accordingly and the "Last Updated" timestamp at the bottom
+9. **Verify build** after any import path changes: `go build ./...`
 
 ## Contact and Feedback
 
@@ -288,5 +301,5 @@ This is an internal SparkFabrik tool. For questions or issues, contact the Platf
 
 ---
 
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-18
 **Document Version:** 1.1

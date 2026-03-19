@@ -116,3 +116,76 @@ func TestComputeNeeds_ExplicitNeedsMerged(t *testing.T) {
 		t.Errorf("first need should be explicit test--a--j2, got %v", needs[0])
 	}
 }
+
+func TestComputeNeeds_CrossStageExplicitNeeds(t *testing.T) {
+	jobs := []*config.AssembledJob{
+		{ID: "build--a--j1", Stage: "build"},
+		{ID: "test--b--j1", Stage: "test"},
+		{ID: "deploy--c--j1", Stage: "deploy", ExplicitNeeds: []string{"build--a--j1"}},
+	}
+
+	expanded := []ExpandedStage{
+		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
+		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
+		{Name: "deploy", Kind: StageKindRegular, BaseName: "deploy"},
+	}
+
+	ComputeNeeds(jobs, expanded)
+
+	// deploy should have explicit need (build--a--j1) first, then automatic (test--b--j1).
+	needs := jobs[2].ComputedNeeds
+	if len(needs) != 2 {
+		t.Fatalf("expected 2 needs for deploy job, got %d: %v", len(needs), needs)
+	}
+	// Explicit comes first.
+	if needs[0] != "build--a--j1" {
+		t.Errorf("first need should be explicit build--a--j1, got %v", needs[0])
+	}
+	// Automatic comes second (from the previous stage, test).
+	if needs[1] != "test--b--j1" {
+		t.Errorf("second need should be automatic test--b--j1, got %v", needs[1])
+	}
+}
+
+func TestComputeNeeds_SingleStage(t *testing.T) {
+	jobs := []*config.AssembledJob{
+		{ID: "build--a--j1", Stage: "build"},
+		{ID: "build--a--j2", Stage: "build"},
+	}
+
+	expanded := []ExpandedStage{
+		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
+	}
+
+	ComputeNeeds(jobs, expanded)
+
+	for _, j := range jobs {
+		if len(j.ComputedNeeds) != 0 {
+			t.Errorf("job %q in single-stage pipeline should have no needs, got %v", j.ID, j.ComputedNeeds)
+		}
+	}
+}
+
+func TestMergeNeeds_NilInputs(t *testing.T) {
+	// Both nil returns nil.
+	if result := mergeNeeds(nil, nil); result != nil {
+		t.Errorf("mergeNeeds(nil, nil) = %v, want nil", result)
+	}
+
+	// Both empty returns nil.
+	if result := mergeNeeds([]string{}, []string{}); result != nil {
+		t.Errorf("mergeNeeds([], []) = %v, want nil", result)
+	}
+
+	// Only automatic returns automatic.
+	result := mergeNeeds([]string{"a", "b"}, nil)
+	if len(result) != 2 || result[0] != "a" || result[1] != "b" {
+		t.Errorf("mergeNeeds(auto, nil) = %v, want [a b]", result)
+	}
+
+	// Only explicit returns explicit.
+	result = mergeNeeds(nil, []string{"x", "y"})
+	if len(result) != 2 || result[0] != "x" || result[1] != "y" {
+		t.Errorf("mergeNeeds(nil, explicit) = %v, want [x y]", result)
+	}
+}
