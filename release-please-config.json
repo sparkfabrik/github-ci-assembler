@@ -5,6 +5,7 @@
     ".": {
       "release-type": "go",
       "component": "github-ci-assembler",
+      "include-component-in-tag": false,
       "changelog-path": "CHANGELOG.md"
     }
   }
