@@ -251,6 +251,17 @@ go test ./...
 UPDATE_GOLDEN=1 go test ./...
 ```
 
+## Release Process
+
+Releases are automated via [release-please](https://github.com/googleapis/release-please):
+
+1. Merge PRs to `main` using [conventional commit](https://www.conventionalcommits.org/) titles (enforced by CI)
+2. release-please creates/updates a **Release PR** with version bump and changelog
+3. Merging the Release PR creates a **GitHub Release** with a git tag
+4. The release triggers **GoReleaser**, which builds cross-platform binaries and attaches them to the release
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions and details.
+
 ## Requirements
 
 - Go 1.25.6 or later

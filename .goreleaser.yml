@@ -52,27 +52,8 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  use: github
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
-      - '^chore:'
-      - Merge pull request
-      - Merge branch
-  groups:
-    - title: 'Features'
-      regexp: "^.*feat[(\\w)]*:+.*$"
-      order: 0
-    - title: 'Bug fixes'
-      regexp: "^.*fix[(\\w)]*:+.*$"
-      order: 1
-    - title: 'Performance improvements'
-      regexp: "^.*perf[(\\w)]*:+.*$"
-      order: 2
-    - title: 'Others'
-      order: 999
+  # Changelog is managed by release-please; skip goreleaser's changelog generation.
+  disable: true
 
 release:
   github:
