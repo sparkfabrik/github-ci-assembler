@@ -42,6 +42,10 @@ testdata/full-example/             Test fixtures
   golden/                          Expected output files
 specs/gh-ci-assembler.md           Full specification (~1165 lines)
 schemas/gh-ci-assembler-schemas.json      JSON schemas
+release-please-config.json         release-please configuration
+.release-please-manifest.json      release-please version manifest
+CHANGELOG.md                       Auto-generated changelog (managed by release-please)
+CONTRIBUTING.md                    Commit conventions and release process
 ```
 
 ### Core Data Structures (internal/config/types.go)
@@ -274,6 +278,29 @@ go install ./cmd/gh-ci-assembler
 2. **Map iteration order:** Go randomizes map iteration. `needs.go` includes explicit sort on job IDs to ensure deterministic output.
 3. **`on` map form:** GitHub Actions allows `on: push` and `on: [push, pull_request]`, but we require `on: {push: {}, pull_request: {}}` for well-defined merge behavior.
 
+## Release Process
+
+Releases are automated via [release-please](https://github.com/googleapis/release-please) + [GoReleaser](https://goreleaser.com/):
+
+1. PRs to `main` must use [conventional commit](https://www.conventionalcommits.org/) titles (enforced by `lint-pr-title.yml`)
+2. On merge to `main`, release-please creates/updates a **Release PR** (version bump + `CHANGELOG.md`)
+3. Merging the Release PR creates a **GitHub Release** + git tag
+4. The release event triggers `release.yml`, which runs **GoReleaser** to build cross-platform binaries and attach them to the release
+
+**Configuration files:**
+- `release-please-config.json` — release-please settings (`release-type: "go"`)
+- `.release-please-manifest.json` — current version tracking
+- `.goreleaser.yml` — GoReleaser build/archive settings (changelog disabled; managed by release-please)
+
+**CI Workflows:**
+- `.github/workflows/release-please.yml` — Creates release PRs on push to `main`
+- `.github/workflows/release.yml` — Runs GoReleaser on release creation
+- `.github/workflows/lint-pr-title.yml` — Enforces conventional commit PR titles
+- `.github/workflows/test.yml` — Runs tests on push/PR
+- `.github/workflows/lint.yml` — Runs golangci-lint on push/PR
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit conventions.
+
 ## Deferred Features
 
 These are explicitly deferred and NOT implemented:
@@ -301,5 +328,5 @@ This is an internal SparkFabrik tool. For questions or issues, contact the Platf
 
 ---
 
-**Last Updated:** 2026-03-18
-**Document Version:** 1.1
+**Last Updated:** 2026-03-19
+**Document Version:** 1.2

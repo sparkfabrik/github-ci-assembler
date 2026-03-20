@@ -1,0 +1,32 @@
+# This workflow uses pull_request_target instead of pull_request so that
+# fork PRs get a token with enough permissions to report status checks.
+#
+# SECURITY: pull_request_target runs the workflow from the default branch
+# (not the PR) and grants full secrets. This is safe here because we never
+# checkout or execute code from the PR — we only read the PR title via API.
+#
+# RULE OF THUMB:
+#   pull_request_target + NO checkout of PR code = safe (metadata ops only)
+#   pull_request_target + checkout of PR head    = DANGEROUS (untrusted code with secrets)
+#   pull_request        = safe for building/testing PR code (secrets withheld from forks)
+
+name: "Lint PR Title"
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+
+jobs:
+  main:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
