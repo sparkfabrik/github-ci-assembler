@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.2.0...v0.3.0) (2026-03-20)
+
+
+### Features
+
+* improve workflows ([#14](https://github.com/sparkfabrik/github-ci-assembler/issues/14)) ([b6bf2a8](https://github.com/sparkfabrik/github-ci-assembler/commit/b6bf2a88741141f4b6a2a7e55d306b7d1e901aa8))
+
 ## [0.2.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.1.1...v0.2.0) (2026-03-20)
 
 
