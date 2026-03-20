@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/sparkfabrik/github-ci-assembler/compare/github-ci-assembler-v0.1.0...github-ci-assembler-v0.1.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* change release event type from 'created' to 'published' ([#10](https://github.com/sparkfabrik/github-ci-assembler/issues/10)) ([fd5cf84](https://github.com/sparkfabrik/github-ci-assembler/commit/fd5cf84b3af2a5ad9a90acdfbe9ebd2ab7393b42))
+
 ## [0.1.0](https://github.com/sparkfabrik/github-ci-assembler/compare/github-ci-assembler-v0.0.6...github-ci-assembler-v0.1.0) (2026-03-20)
 
 
