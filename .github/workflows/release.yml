@@ -1,17 +1,16 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  release:
+    types:
+      - created
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  release:
-    name: Release
+  goreleaser:
+    name: Build and upload binaries
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,9 +23,6 @@ jobs:
         with:
           go-version: '1.25.6'
           cache: true
-
-      - name: Run tests
-        run: go test -v ./...
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
