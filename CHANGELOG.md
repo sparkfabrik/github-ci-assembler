@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.3.0...v0.4.0) (2026-04-20)
+
+
+### Features
+
+* improve output header ([#16](https://github.com/sparkfabrik/github-ci-assembler/issues/16)) ([a7fc581](https://github.com/sparkfabrik/github-ci-assembler/commit/a7fc5814e55cbe61a63a5f7a662fa44576b5aed8))
+
 ## [0.3.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.2.0...v0.3.0) (2026-03-20)
 
 
