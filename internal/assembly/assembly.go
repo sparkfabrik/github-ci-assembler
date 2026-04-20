@@ -2,6 +2,7 @@ package assembly
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -353,14 +354,33 @@ func sortJobs(jobs []*config.AssembledJob, expandedStages []ExpandedStage) {
 }
 
 // collectSourceFiles gathers all source file paths in assembly order.
-func collectSourceFiles(configPath string, pkgPaths []string, projectPath string) []string {
-	var files []string
-	files = append(files, filepath.Base(configPath))
+// Paths are made relative to the current working directory when possible.
+func collectSourceFiles(configPath string, pkgPaths []string, projectPath string) []config.SourceFile {
+	var files []config.SourceFile
+	files = append(files, config.SourceFile{Kind: " config", Path: relPath(configPath)})
 	for _, p := range pkgPaths {
-		files = append(files, filepath.Base(p))
+		files = append(files, config.SourceFile{Kind: "package", Path: relPath(p)})
 	}
 	if projectPath != "" {
-		files = append(files, filepath.Base(projectPath))
+		files = append(files, config.SourceFile{Kind: "project", Path: relPath(projectPath)})
 	}
 	return files
+}
+
+// relPath returns p as a path relative to the current working directory.
+// If the conversion fails for any reason, p is returned unchanged.
+func relPath(p string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return p
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return p
+	}
+	rel, err := filepath.Rel(cwd, abs)
+	if err != nil {
+		return p
+	}
+	return rel
 }

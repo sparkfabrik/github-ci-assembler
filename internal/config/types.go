@@ -122,9 +122,15 @@ type WorkflowProperties struct {
 	Permissions map[string]any
 }
 
+// SourceFile represents a single input file and its role in the assembly.
+type SourceFile struct {
+	Kind string // " config", "package", or "project"
+	Path string
+}
+
 // AssemblyResult holds the complete result of the assembly process.
 type AssemblyResult struct {
 	Workflow    WorkflowProperties
 	Jobs        []*AssembledJob
-	SourceFiles []string // ordered list of all source file paths
+	SourceFiles []SourceFile // ordered list of all source files with their roles
 }
