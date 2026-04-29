@@ -813,8 +813,8 @@ func TestSortJobs_DeterministicOrder(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
+		{Name: "build"},
+		{Name: "test"},
 	}
 
 	sortJobs(jobs, expanded)

@@ -40,7 +40,7 @@ func minimalResult(jobs []*config.AssembledJob) *config.AssemblyResult {
 			Name: "CI",
 		},
 		Jobs:        jobs,
-		SourceFiles: []config.SourceFile{{Kind: " config", Path: "configuration.yml"}},
+		SourceFiles: []config.SourceFile{{Kind: "config", Path: "configuration.yml"}},
 	}
 }
 
@@ -59,7 +59,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header includes multiple source files",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "package", Path: "pkg_a.yml"},
 			},
 			jobs: []*config.AssembledJob{},
@@ -72,7 +72,7 @@ func TestRender_Header(t *testing.T) {
 		},
 		{
 			name:        "header includes single source file",
-			sourceFiles: []config.SourceFile{{Kind: " config", Path: "conf.yml"}},
+			sourceFiles: []config.SourceFile{{Kind: "config", Path: "conf.yml"}},
 			jobs:        []*config.AssembledJob{},
 			wantSubstr: []string{
 				"AUTO-GENERATED",
@@ -83,7 +83,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header includes overview for pure package job",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "package", Path: "pkg_a.yml"},
 			},
 			jobs: []*config.AssembledJob{
@@ -99,7 +99,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header shows status extended for extend directive",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "package", Path: "pkg_a.yml"},
 				{Kind: "project", Path: "project.yml"},
 			},
@@ -115,7 +115,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header shows status replaced for replace directive",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "package", Path: "pkg_a.yml"},
 				{Kind: "project", Path: "project.yml"},
 			},
@@ -130,7 +130,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header shows status disabled for disable directive",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "package", Path: "pkg_a.yml"},
 				{Kind: "project", Path: "project.yml"},
 			},
@@ -145,7 +145,7 @@ func TestRender_Header(t *testing.T) {
 		{
 			name: "header shows provided_by project and status new for new directive",
 			sourceFiles: []config.SourceFile{
-				{Kind: " config", Path: "conf.yml"},
+				{Kind: "config", Path: "conf.yml"},
 				{Kind: "project", Path: "project.yml"},
 			},
 			jobs: []*config.AssembledJob{
@@ -196,7 +196,7 @@ func TestRender_WorkflowPropertyOrder(t *testing.T) {
 			Permissions: map[string]any{"contents": "read"},
 		},
 		Jobs:        []*config.AssembledJob{},
-		SourceFiles: []config.SourceFile{{Kind: " config", Path: "conf.yml"}},
+		SourceFiles: []config.SourceFile{{Kind: "config", Path: "conf.yml"}},
 	}
 
 	out := mustRender(t, result)
@@ -231,7 +231,7 @@ func TestRender_WorkflowPropertyOmission(t *testing.T) {
 				// On, Defaults, Env, Permissions are all nil.
 			},
 			Jobs:        []*config.AssembledJob{},
-			SourceFiles: []config.SourceFile{{Kind: " config", Path: "conf.yml"}},
+			SourceFiles: []config.SourceFile{{Kind: "config", Path: "conf.yml"}},
 		}
 
 		out := mustRender(t, result)
@@ -256,7 +256,7 @@ func TestRender_WorkflowPropertyOmission(t *testing.T) {
 				Name: "", // Empty name should be omitted.
 			},
 			Jobs:        []*config.AssembledJob{},
-			SourceFiles: []config.SourceFile{{Kind: " config", Path: "conf.yml"}},
+			SourceFiles: []config.SourceFile{{Kind: "config", Path: "conf.yml"}},
 		}
 
 		out := mustRender(t, result)
@@ -540,7 +540,7 @@ func TestRender_EmptyJobsList(t *testing.T) {
 			Name: "CI",
 		},
 		Jobs:        []*config.AssembledJob{},
-		SourceFiles: []config.SourceFile{{Kind: " config", Path: "conf.yml"}},
+		SourceFiles: []config.SourceFile{{Kind: "config", Path: "conf.yml"}},
 	}
 
 	out := mustRender(t, result)

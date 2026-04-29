@@ -73,17 +73,3 @@ func TestExpandStages_OnlyConfiguredStages(t *testing.T) {
 		}
 	}
 }
-
-func TestExpandStages_StageKinds(t *testing.T) {
-	stages := []string{"build"}
-	hasJobs := func(name string) bool { return name == "build" }
-
-	expanded := ExpandStages(stages, hasJobs)
-
-	if len(expanded) != 1 {
-		t.Fatalf("expected 1 stage, got %d", len(expanded))
-	}
-	if expanded[0].Kind != StageKindRegular {
-		t.Error("build should be StageKindRegular")
-	}
-}

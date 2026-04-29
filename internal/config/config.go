@@ -22,7 +22,11 @@ func LoadConfiguration(path string) (*Configuration, error) {
 	cfg := Configuration{}
 
 	if v, ok := raw["version"]; ok {
-		cfg.Version, _ = v.(string)
+		s, isStr := v.(string)
+		if !isStr {
+			return nil, fmt.Errorf("invalid \"version\" in %q: must be a string (e.g., version: \"1\"), got %T", path, v)
+		}
+		cfg.Version = s
 	}
 
 	if v, ok := raw["stages"]; ok {
@@ -37,15 +41,17 @@ func LoadConfiguration(path string) (*Configuration, error) {
 				stages = append(stages, s)
 			}
 			cfg.Stages = stages
-		case []string:
-			cfg.Stages = val
 		default:
 			return nil, fmt.Errorf("invalid \"stages\" format in %q: expected a list of stage names", path)
 		}
 	}
 
 	if v, ok := raw["name"]; ok {
-		cfg.Name, _ = v.(string)
+		s, isStr := v.(string)
+		if !isStr {
+			return nil, fmt.Errorf("invalid \"name\" in %q: must be a string, got %T", path, v)
+		}
+		cfg.Name = s
 	}
 	if v, ok := raw["on"]; ok {
 		m := toMapStringAny(v)

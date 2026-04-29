@@ -26,7 +26,11 @@ func LoadPackage(path string) (*Package, error) {
 
 	// Extract typed top-level fields.
 	if v, ok := raw["id"]; ok {
-		pkg.ID, _ = v.(string)
+		s, isStr := v.(string)
+		if !isStr {
+			return nil, fmt.Errorf("invalid \"id\" in %q: must be a string, got %T", path, v)
+		}
+		pkg.ID = s
 	}
 
 	if _, ok := raw["name"]; ok {

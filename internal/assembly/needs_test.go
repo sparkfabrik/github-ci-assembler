@@ -15,9 +15,9 @@ func TestComputeNeeds_LinearTopology(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
-		{Name: "deploy", Kind: StageKindRegular, BaseName: "deploy"},
+		{Name: "build"},
+		{Name: "test"},
+		{Name: "deploy"},
 	}
 
 	ComputeNeeds(jobs, expanded)
@@ -52,9 +52,9 @@ func TestComputeNeeds_SkipsEmptyStages(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
+		{Name: "build"},
 		// test is not in expanded because it has no jobs
-		{Name: "deploy", Kind: StageKindRegular, BaseName: "deploy"},
+		{Name: "deploy"},
 	}
 
 	ComputeNeeds(jobs, expanded)
@@ -76,8 +76,8 @@ func TestComputeNeeds_SkipsDisabledJobs(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
+		{Name: "build"},
+		{Name: "test"},
 	}
 
 	ComputeNeeds(jobs, expanded)
@@ -100,8 +100,8 @@ func TestComputeNeeds_ExplicitNeedsMerged(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
+		{Name: "build"},
+		{Name: "test"},
 	}
 
 	ComputeNeeds(jobs, expanded)
@@ -125,9 +125,9 @@ func TestComputeNeeds_CrossStageExplicitNeeds(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
-		{Name: "test", Kind: StageKindRegular, BaseName: "test"},
-		{Name: "deploy", Kind: StageKindRegular, BaseName: "deploy"},
+		{Name: "build"},
+		{Name: "test"},
+		{Name: "deploy"},
 	}
 
 	ComputeNeeds(jobs, expanded)
@@ -154,7 +154,7 @@ func TestComputeNeeds_SingleStage(t *testing.T) {
 	}
 
 	expanded := []ExpandedStage{
-		{Name: "build", Kind: StageKindRegular, BaseName: "build"},
+		{Name: "build"},
 	}
 
 	ComputeNeeds(jobs, expanded)

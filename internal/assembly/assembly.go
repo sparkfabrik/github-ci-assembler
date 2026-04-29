@@ -314,16 +314,12 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 }
 
 func validateExplicitNeeds(jobs []*config.AssembledJob) error {
-	available := make([]string, 0, len(jobs))
 	availableSet := make(map[string]bool, len(jobs))
 	for _, j := range jobs {
-		if j.Disabled {
-			continue
+		if !j.Disabled {
+			availableSet[j.ID] = true
 		}
-		available = append(available, j.ID)
-		availableSet[j.ID] = true
 	}
-	sort.Strings(available)
 
 	for _, j := range jobs {
 		if j.Disabled {
@@ -333,6 +329,12 @@ func validateExplicitNeeds(jobs []*config.AssembledJob) error {
 			if availableSet[need] {
 				continue
 			}
+			// Build sorted list of available IDs only for the error message.
+			available := make([]string, 0, len(availableSet))
+			for id := range availableSet {
+				available = append(available, id)
+			}
+			sort.Strings(available)
 			return fmt.Errorf("stage %q, job %q: invalid needs reference %q.\n       needs entries must reference existing output job IDs.\n       Available job IDs: %v",
 				j.Stage, j.ID, need, available)
 		}
@@ -362,7 +364,7 @@ func sortJobs(jobs []*config.AssembledJob, expandedStages []ExpandedStage) {
 // Paths are made relative to the current working directory when possible.
 func collectSourceFiles(configPath string, pkgPaths []string, projectPath string) []config.SourceFile {
 	var files []config.SourceFile
-	files = append(files, config.SourceFile{Kind: " config", Path: relPath(configPath)})
+	files = append(files, config.SourceFile{Kind: "config", Path: relPath(configPath)})
 	for _, p := range pkgPaths {
 		files = append(files, config.SourceFile{Kind: "package", Path: relPath(p)})
 	}

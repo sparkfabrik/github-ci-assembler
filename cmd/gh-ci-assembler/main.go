@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 
 	"github.com/sparkfabrik/github-ci-assembler/internal/assembly"
@@ -132,7 +133,7 @@ then generate a complete GitHub Actions workflow YAML file.`,
 			}
 
 			// Ensure output directory exists.
-			if err := os.MkdirAll(outputDir(outputPath), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 				return fmt.Errorf("creating output directory: %w", err)
 			}
 
@@ -152,14 +153,4 @@ then generate a complete GitHub Actions workflow YAML file.`,
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print to stdout without writing")
 
 	return cmd
-}
-
-// outputDir extracts the directory part of a file path.
-func outputDir(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' || path[i] == '\\' {
-			return path[:i]
-		}
-	}
-	return "."
 }

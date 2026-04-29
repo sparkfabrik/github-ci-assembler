@@ -4,6 +4,7 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/sparkfabrik/github-ci-assembler/internal/config"
@@ -138,7 +139,7 @@ func writeHeader(buf *bytes.Buffer, result *config.AssemblyResult) {
 	buf.WriteString("#\n")
 	buf.WriteString("# Contributing files:\n")
 	for _, f := range result.SourceFiles {
-		fmt.Fprintf(buf, "#   - %s: %s\n", f.Kind, f.Path)
+		fmt.Fprintf(buf, "#   - %7s: %s\n", f.Kind, f.Path)
 	}
 	buf.WriteString("\n")
 }
@@ -282,7 +283,7 @@ func renderSingleJob(j *config.AssembledJob) (*yaml.Node, error) {
 			remainingKeys = append(remainingKeys, key)
 		}
 	}
-	sortStrings(remainingKeys)
+	slices.Sort(remainingKeys)
 	for _, key := range remainingKeys {
 		if err := addAnyMapping(jobNode, key, j.Properties[key]); err != nil {
 			return nil, fmt.Errorf("key %q: %w", key, err)
@@ -333,13 +334,4 @@ func marshalNode(node *yaml.Node) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-// sortStrings sorts a string slice in place.
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
 }
