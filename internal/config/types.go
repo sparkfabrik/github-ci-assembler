@@ -111,6 +111,10 @@ type AssembledJob struct {
 
 	// DisabledComment records the reason for disabling (for output comments).
 	DisabledComment string
+
+	// Directive is the project-level operation applied to this job:
+	// "extend", "replace", "disable", "new", or "" for pure package jobs.
+	Directive string
 }
 
 // WorkflowProperties holds the accumulated workflow-level properties.

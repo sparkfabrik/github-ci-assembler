@@ -147,6 +147,7 @@ func assemblePackageJobs(pkg *config.Package) ([]*config.AssembledJob, error) {
 				SourceName:    sourceName,
 				Properties:    jobDef,
 				ExplicitNeeds: explicitNeeds,
+				Directive:     "",
 			})
 		}
 	}
@@ -232,6 +233,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 				if j, ok := jobIndex[prefixedID]; ok {
 					j.Disabled = true
 					j.DisabledComment = "DISABLED by project.yml"
+					j.Directive = "disable"
 				}
 			} else if pj.IsReplace() {
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Replace.ProvidedBy, jobID)
@@ -254,6 +256,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 						j.SourceName = sourceName
 					}
 					j.ExplicitNeeds = explicitNeeds
+					j.Directive = "replace"
 				}
 			} else if pj.IsExtend() {
 				prefixedID := fmt.Sprintf("%s--%s--%s", stageName, pj.Extend.ProvidedBy, jobID)
@@ -275,6 +278,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 					}
 					j.ExplicitNeeds = mergeNeeds(j.ExplicitNeeds, localNeeds)
 					j.Properties = DeepMerge(j.Properties, overlay)
+					j.Directive = "extend"
 				}
 			} else {
 				// New project job (no directive, not prefixed).
@@ -298,6 +302,7 @@ func applyProjectHooks(jobs []*config.AssembledJob, proj *config.Project) ([]*co
 					SourceName:    sourceName,
 					Properties:    props,
 					ExplicitNeeds: explicitNeeds,
+					Directive:     "new",
 				}
 				jobs = append(jobs, newJob)
 				jobIndex[jobID] = newJob
