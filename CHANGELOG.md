@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.5.0...v0.5.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* opus improvements ([#20](https://github.com/sparkfabrik/github-ci-assembler/issues/20)) ([f76c93b](https://github.com/sparkfabrik/github-ci-assembler/commit/f76c93b9128adbe7f0d31f7f10d560de3d78c5f2))
+
 ## [0.5.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.4.0...v0.5.0) (2026-04-29)
 
 
