@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.4.0...v0.5.0) (2026-04-29)
+
+
+### Features
+
+* improve generated comment ([#18](https://github.com/sparkfabrik/github-ci-assembler/issues/18)) ([28bd5e4](https://github.com/sparkfabrik/github-ci-assembler/commit/28bd5e46ddd894629f98b8e3215f25a52b13ea84))
+
 ## [0.4.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.3.0...v0.4.0) (2026-04-20)
 
 
