@@ -18,12 +18,9 @@
       "minLength": 1
     },
     "on": {
-      "$comment": "Must be map form only — scalar ('on: push') and list shorthand ('on: [push]') are forbidden per spec section 4.1. The upstream github-workflow.json schema accepts all three forms, so we override with type:object here.",
-      "type": "object",
+      "$comment": "Must be map form only — scalar ('on: push') and list shorthand ('on: [push]') are forbidden per spec section 4.1. References the object branch of the upstream oneOf directly, which covers all events including schedule (array of cron objects), push, pull_request, workflow_dispatch, etc.",
       "description": "Workflow triggers. Must use map form only (no scalar or list shorthand).",
-      "additionalProperties": {
-        "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/eventObject"
-      }
+      "$ref": "https://json.schemastore.org/github-workflow.json#/properties/on/oneOf/2"
     },
     "defaults": {
       "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/defaults",
