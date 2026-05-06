@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.5.1...v0.6.0) (2026-05-06)
+
+
+### Features
+
+* json schema files ([28359ba](https://github.com/sparkfabrik/github-ci-assembler/commit/28359ba02b5d24e666d8089b3e4c322ad8a30adb))
+
+
+### Bug Fixes
+
+* refine a bit the schema for on ([42f1875](https://github.com/sparkfabrik/github-ci-assembler/commit/42f18751bd895e58cb743dd4f847ea57cd9eeb0d))
+
 ## [0.5.1](https://github.com/sparkfabrik/github-ci-assembler/compare/v0.5.0...v0.5.1) (2026-04-29)
 
 
