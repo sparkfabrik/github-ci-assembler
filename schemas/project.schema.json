@@ -1,0 +1,194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/project.schema.json",
+  "title": "GitHub CI Assembler - Project",
+  "description": "Per-project customizations: file-scoped env defaults, workflow permissions overlay, and job operations (extend, replace, disable, new).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "env": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env",
+      "description": "File-scoped env defaults merged into each project-defined job (new/extend/replace), with lower priority than each job's own env."
+    },
+    "permissions": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/permissions",
+      "description": "Workflow permissions overlay deep-merged into the root workflow permissions map with highest priority."
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Map of stage name → jobs. Each job is one of: new (no directive), extend, replace, or disable.",
+      "patternProperties": {
+        "^[a-z0-9]([a-z0-9_]|-(?!-))*$": {
+          "type": "object",
+          "description": "Jobs for this stage. Job ids must not contain '--' (reserved separator).",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9]([a-z0-9_]|-(?!-))*$": {
+              "$ref": "#/definitions/projectJob"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "providedByRef": {
+      "type": "object",
+      "required": ["provided_by"],
+      "additionalProperties": false,
+      "properties": {
+        "provided_by": {
+          "type": "string",
+          "$comment": "Pattern forbids '--' via negative lookahead: allows single hyphens but not consecutive ones.",
+          "pattern": "^[a-z0-9]([a-z0-9_]|-(?!-))*$",
+          "description": "The id of the package that provides the target job.",
+          "minLength": 1
+        }
+      }
+    },
+    "projectJob": {
+      "description": "A project job declaration. Must be exactly one of: extend (has 'extend' key), replace (has 'replace' key), disable (has 'disable' key), or new (none of the above).",
+      "oneOf": [
+        { "$ref": "#/definitions/extendJob" },
+        { "$ref": "#/definitions/replaceJob" },
+        { "$ref": "#/definitions/disableJob" },
+        { "$ref": "#/definitions/newJob" }
+      ]
+    },
+    "jobProperties": {
+      "$comment": "Shared GHA job-level properties used by extendJob, replaceJob, and newJob.",
+      "properties": {
+        "name": { "type": "string" },
+        "needs": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/jobNeeds" },
+        "runs-on": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ]
+        },
+        "uses": {
+          "type": "string",
+          "description": "Reusable workflow reference (job-level). Mutually exclusive with runs-on and steps.",
+          "pattern": "^(.+/)+.+\\.(ya?ml)(@.+)?$"
+        },
+        "with": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env",
+          "description": "Input parameters passed to a reusable workflow (used with job-level 'uses')."
+        },
+        "secrets": {
+          "oneOf": [
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env" },
+            { "type": "string", "enum": ["inherit"] }
+          ],
+          "description": "Secrets passed to a reusable workflow (used with job-level 'uses')."
+        },
+        "permissions": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/permissions" },
+        "env": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env" },
+        "defaults": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/defaults" },
+        "if": { "type": ["boolean", "number", "string"] },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/step" },
+          "minItems": 1
+        },
+        "timeout-minutes": { "oneOf": [{ "type": "number" }, { "type": "string" }] },
+        "continue-on-error": { "oneOf": [{ "type": "boolean" }, { "type": "string" }] },
+        "container": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/jobContainer" }
+          ]
+        },
+        "services": {
+          "type": "object",
+          "additionalProperties": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/serviceContainer" }
+        },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "matrix": { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/matrix" },
+            "fail-fast": { "type": ["boolean", "string"] },
+            "max-parallel": { "type": ["number", "string"] }
+          },
+          "required": ["matrix"],
+          "additionalProperties": false
+        },
+        "concurrency": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/concurrency" }
+          ]
+        },
+        "outputs": { "type": "object", "additionalProperties": { "type": "string" } },
+        "environment": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/environment" }
+          ]
+        }
+      }
+    },
+    "extendJob": {
+      "type": "object",
+      "description": "Deep-merges project properties into an existing package job. Properties not declared here are preserved from the package.",
+      "required": ["extend"],
+      "allOf": [{ "$ref": "#/definitions/jobProperties" }],
+      "properties": {
+        "extend": { "$ref": "#/definitions/providedByRef" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["replace"] },
+          { "required": ["disable"] }
+        ]
+      },
+      "additionalProperties": false
+    },
+    "replaceJob": {
+      "type": "object",
+      "description": "Fully substitutes an existing package job. Nothing from the original survives.",
+      "required": ["replace"],
+      "allOf": [{ "$ref": "#/definitions/jobProperties" }],
+      "properties": {
+        "replace": { "$ref": "#/definitions/providedByRef" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["extend"] },
+          { "required": ["disable"] }
+        ]
+      },
+      "additionalProperties": false
+    },
+    "disableJob": {
+      "type": "object",
+      "description": "Removes a package-provided job from the pipeline.",
+      "required": ["disable"],
+      "properties": {
+        "disable": { "$ref": "#/definitions/providedByRef" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["extend"] },
+          { "required": ["replace"] }
+        ]
+      },
+      "additionalProperties": false
+    },
+    "newJob": {
+      "type": "object",
+      "description": "A new job contributed by the project. Not prefixed in output. Full GitHub Actions job syntax.",
+      "allOf": [{ "$ref": "#/definitions/jobProperties" }],
+      "not": {
+        "anyOf": [
+          { "required": ["extend"] },
+          { "required": ["replace"] },
+          { "required": ["disable"] }
+        ]
+      },
+      "additionalProperties": false
+    }
+  }
+}

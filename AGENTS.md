@@ -41,7 +41,10 @@ testdata/full-example/             Test fixtures
   project.yml                      All customization operations
   golden/                          Expected output files
 specs/gh-ci-assembler.md           Full specification (~1165 lines)
-schemas/gh-ci-assembler-schemas.json      JSON schemas
+schemas/
+  configuration.schema.json              JSON Schema for configuration.yml
+  package.schema.json                    JSON Schema for pkg_*.yml
+  project.schema.json                    JSON Schema for project.yml
 release-please-config.json         release-please configuration
 .release-please-manifest.json      release-please version manifest
 CHANGELOG.md                       Auto-generated changelog (managed by release-please)
@@ -288,11 +291,13 @@ Releases are automated via [release-please](https://github.com/googleapis/releas
 4. The release event triggers `release.yml`, which runs **GoReleaser** to build cross-platform binaries and attach them to the release
 
 **Configuration files:**
+
 - `release-please-config.json` — release-please settings (`release-type: "go"`)
 - `.release-please-manifest.json` — current version tracking
 - `.goreleaser.yml` — GoReleaser build/archive settings (changelog disabled; managed by release-please)
 
 **CI Workflows:**
+
 - `.github/workflows/release-please.yml` — Creates release PRs on push to `main`
 - `.github/workflows/release.yml` — Runs GoReleaser on release creation
 - `.github/workflows/lint-pr-title.yml` — Enforces conventional commit PR titles

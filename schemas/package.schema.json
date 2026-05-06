@@ -1,0 +1,162 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/package.schema.json",
+  "title": "GitHub CI Assembler - Package",
+  "description": "A package contributing jobs to pipeline stages, optional file-scoped env defaults, and an optional workflow permissions overlay.",
+  "type": "object",
+  "required": ["id", "hooks"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "$comment": "Pattern forbids '--' via negative lookahead: allows single hyphens but not consecutive ones.",
+      "pattern": "^[a-z0-9]([a-z0-9_]|-(?!-))*$",
+      "description": "Unique package file identifier. Used as the job id prefix and as the provided_by target in project.yml. Must not contain '--' (reserved separator).",
+      "minLength": 1
+    },
+    "env": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env",
+      "description": "File-scoped env defaults merged into each job in this package (job env wins on conflict)."
+    },
+    "permissions": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/permissions",
+      "description": "Workflow permissions overlay deep-merged into the root workflow permissions map."
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Map of stage name → jobs. Stage names must match those declared in configuration.yml.",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z0-9]([a-z0-9_]|-(?!-))*$": {
+          "type": "object",
+          "description": "Jobs for this stage. Keys are job ids (must not contain '--'), values are GitHub Actions job definitions.",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9]([a-z0-9_]|-(?!-))*$": {
+              "$ref": "#/definitions/packageJob"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "packageJob": {
+      "$comment": "A GitHub Actions job definition. Job-level 'uses' (reusable workflow call) is supported as an alternative to runs-on+steps.",
+      "description": "GitHub Actions job definition (native GHA syntax). The 'name' field is consumed by the assembler for display name generation.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable job name used by the assembler to generate display names. Not passed through as-is."
+        },
+        "needs": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/jobNeeds",
+          "description": "Explicit dependencies preserved and merged with automatic stage-based dependencies. Must use output (prefixed) job IDs."
+        },
+        "runs-on": {
+          "$comment": "Runner specification - same as GitHub Actions. Required unless using job-level 'uses'.",
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ]
+        },
+        "uses": {
+          "type": "string",
+          "description": "Reusable workflow reference (job-level). Mutually exclusive with runs-on and steps.",
+          "pattern": "^(.+/)+.+\\.(ya?ml)(@.+)?$"
+        },
+        "with": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env",
+          "description": "Input parameters passed to a reusable workflow (used with job-level 'uses')."
+        },
+        "secrets": {
+          "oneOf": [
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env" },
+            { "type": "string", "enum": ["inherit"] }
+          ],
+          "description": "Secrets passed to a reusable workflow (used with job-level 'uses')."
+        },
+        "permissions": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/permissions"
+        },
+        "env": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env"
+        },
+        "defaults": {
+          "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/defaults"
+        },
+        "if": {
+          "type": ["boolean", "number", "string"]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/step"
+          },
+          "minItems": 1
+        },
+        "timeout-minutes": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" }
+          ]
+        },
+        "continue-on-error": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string" }
+          ]
+        },
+        "container": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/jobContainer" }
+          ]
+        },
+        "services": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/serviceContainer"
+          }
+        },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "matrix": {
+              "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/matrix"
+            },
+            "fail-fast": {
+              "type": ["boolean", "string"],
+              "default": true
+            },
+            "max-parallel": {
+              "type": ["number", "string"]
+            }
+          },
+          "required": ["matrix"],
+          "additionalProperties": false
+        },
+        "concurrency": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/concurrency" }
+          ]
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "environment": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/environment" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

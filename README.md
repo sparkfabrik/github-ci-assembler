@@ -75,7 +75,7 @@ stages:
   - deploy
 ```
 
-### pkg_*.yml (Packages)
+### pkg\_\*.yml (Packages)
 
 Each package contributes jobs and can declare file-scoped `env` defaults merged into each package job (`job.env` wins on conflicts):
 
@@ -94,7 +94,7 @@ hooks:
         - uses: actions/checkout@v4
         - name: Build
           run: docker build -t app:latest .
-  
+
   test:
     phpunit:
       name: PHPUnit tests
@@ -106,6 +106,7 @@ hooks:
 ```
 
 **Key points:**
+
 - `id` is required and must be unique across all packages
 - `hooks` maps stages to job definitions (native GHA syntax)
 - Root `name`, `on`, and `defaults` are not allowed in packages
@@ -202,6 +203,7 @@ gh-ci-assembler generate [flags]
 ```
 
 **Flags:**
+
 - `--conf <file>` — Configuration file (required)
 - `--pkg <file>` — Package file (repeatable, order matters)
 - `--project <file>` — Project customization file (optional)
@@ -209,6 +211,7 @@ gh-ci-assembler generate [flags]
 - `--dry-run` — Print to stdout instead of writing file
 
 **Exit codes:**
+
 - `0` — Success
 - `1` — Validation or assembly error
 
@@ -234,19 +237,65 @@ Key design principles:
 - **Linear stage topology** — Jobs in stage N depend on all jobs in stage N-1
 - **Deep merge semantics** — Kubernetes strategic merge patch rules for `extend` operations
 
+## YAML Language Server (yaml-language-server)
+
+JSON schemas are provided for all three input file types in the `schemas/` directory. Add a modeline comment at the top of each file to get validation, autocompletion, and hover documentation in editors that support `yaml-language-server` (VS Code with the YAML extension, Neovim, etc.).
+
+**configuration.yml:**
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sparkfabrik/github-ci-assembler/main/schemas/configuration.schema.json
+version: "1"
+stages:
+  - build
+  - test
+  - deploy
+```
+
+**pkg\_\*.yml (packages):**
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sparkfabrik/github-ci-assembler/main/schemas/package.schema.json
+id: drupal
+hooks:
+  build:
+    docker-php:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+```
+
+**project.yml:**
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sparkfabrik/github-ci-assembler/main/schemas/project.schema.json
+hooks:
+  build:
+    docker-php:
+      extend:
+        provided_by: drupal
+      env:
+        MY_VAR: value
+```
+
+The package and project schemas reference the upstream [SchemaStore GitHub workflow schema](https://json.schemastore.org/github-workflow.json) for full validation of job-level properties (`steps`, `services`, `container`, `runs-on`, etc.).
+
 ## Development
 
 **Build:**
+
 ```bash
 go build ./...
 ```
 
 **Test:**
+
 ```bash
 go test ./...
 ```
 
 **Update golden files:**
+
 ```bash
 UPDATE_GOLDEN=1 go test ./...
 ```
@@ -274,5 +323,5 @@ Copyright SparkFabrik. All rights reserved.
 ## See Also
 
 - Full specification: `specs/gh-ci-assembler.md`
-- JSON schemas: `schemas/gh-ci-assembler-schemas.json`
+- JSON schemas: `schemas/`
 - AI context: `AGENTS.md`

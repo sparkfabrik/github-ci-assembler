@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sparkfabrik.com/schemas/github-ci-assembler/configuration.schema.json",
+  "title": "GitHub CI Assembler - Configuration",
+  "description": "Defines the pipeline skeleton (stage topology) and workflow root keys for gh-ci-assembler.",
+  "type": "object",
+  "required": ["version", "stages"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1",
+      "description": "Schema version. Currently only '1' is supported."
+    },
+    "name": {
+      "type": "string",
+      "description": "Workflow display name.",
+      "minLength": 1
+    },
+    "on": {
+      "$comment": "Must be map form only — scalar ('on: push') and list shorthand ('on: [push]') are forbidden per spec section 4.1. The upstream github-workflow.json schema accepts all three forms, so we override with type:object here.",
+      "type": "object",
+      "description": "Workflow triggers. Must use map form only (no scalar or list shorthand).",
+      "additionalProperties": {
+        "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/eventObject"
+      }
+    },
+    "defaults": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/defaults",
+      "description": "Workflow-level defaults (e.g., defaults.run.shell)."
+    },
+    "env": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/env",
+      "description": "Workflow-level environment variables emitted at root env in the generated workflow."
+    },
+    "permissions": {
+      "$ref": "https://json.schemastore.org/github-workflow.json#/definitions/permissions",
+      "description": "Base workflow permissions map, deep-merged with package/project permissions overlays."
+    },
+    "stages": {
+      "type": "array",
+      "description": "Ordered list of stage names defining the pipeline topology. Names must not contain '--' (reserved separator).",
+      "items": {
+        "type": "string",
+        "$comment": "Pattern forbids '--' via negative lookahead: allows single hyphens but not consecutive ones.",
+        "pattern": "^[a-z0-9]([a-z0-9_]|-(?!-))*$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
